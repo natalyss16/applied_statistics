@@ -1,0 +1,57 @@
+---
+output:
+  reprex::reprex_document:
+    venue: "gh"
+    advertise: FALSE
+    session_info: TRUE
+    style: TRUE
+    comment: "#;-)"
+    tidyverse_quiet: FALSE
+    std_out_err: TRUE
+knit: reprex::reprex_render
+---
+
+# Applied Statistics in R
+## Natali Tckvitishvili
+
+### Load libraries
+
+```{r, eval = requireNamespace("tidyverse", quietly = TRUE)}
+library(tidyverse)
+library(ggplot2)
+```
+
+### Exercise 1
+
+a. load data & add new variable - good
+
+```{r}
+wine <- read.csv("winequality-white.csv", sep = ";")
+print(wine)
+
+wine <- mutate(wine, good = ifelse(quality > 5, 1, 0))
+```
+
+b. residual.sugar analysis
+* histograms for good and bad quality wines
+
+```{r}
+ggplot(wine, aes(x = residual.sugar, fill = as.factor(good))) +
+geom_histogram(position = "identity", alpha = .5, bins = 100) +
+scale_fill_manual(values=c("#69b3a2", "#404080")) +
+facet_wrap(vars(good))
+```
+
+## Standard output and error
+
+Some output that you see in an interactive session is not actually captured by rmarkdown, when that same code is executed in the context of an `.Rmd` document. When `std_out_err` is `TRUE`, `reprex::reprex_render()` uses a feature of `callr:r()` to capture such output and then injects it into the rendered result.
+
+Look for this output in a special section of the rendered document (and notice that it does not appear right here).
+
+```{r}
+system2("echo", args = "Output that would normally be lost")
+```
+
+## Session info
+
+Because `session_info` is `TRUE`, the rendered result includes session info, even though no such code is included here in the source document. 
