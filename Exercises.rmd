@@ -1,15 +1,8 @@
 ---
-output:
-  pdf_document:
-    keep_md: TRUE
-    venue: "gh"
-    advertise: FALSE
-    session_info: TRUE
-    style: TRUE
-    comment: "#;-)"
-    tidyverse_quiet: FALSE
-    std_out_err: TRUE
-knit: reprex::reprex_render
+title: "Exercies"
+author: "Natali Tckvitishvili"
+date: "`r Sys.Date()`"
+output: pdf_document
 ---
 
 # Applied Statistics in R
@@ -17,7 +10,7 @@ knit: reprex::reprex_render
 
 ### Load libraries
 
-```{r, eval = requireNamespace("tidyverse", quietly = TRUE)}
+```{r}
 library(tidyverse)
 library(ggplot2)
 ```
@@ -26,7 +19,7 @@ library(ggplot2)
 
 a. load data & add new variable - good
 
-```{r}
+```{r, results = FALSE}
 wine <- read.csv("winequality-white.csv", sep = ";")
 print(wine)
 
