@@ -10,7 +10,7 @@ output: pdf_document
 
 ### Load libraries
 
-```{r}
+```{r, results=FALSE, message=FALSE}
 library(tidyverse)
 library(ggplot2)
 ```
@@ -27,11 +27,47 @@ wine <- mutate(wine, good = ifelse(quality > 5, 1, 0))
 ```
 
 b. residual.sugar analysis
+
+First we'd like to specify the analysed variable to add more flexibility in the further analysis, when we'll need to make the same calculation for another variable.
+
+```{r, results = FALSE}
+analysed_variable <- wine$residual.sugar
+```
+
 * histograms for good and bad quality wines
 
 ```{r}
-ggplot(wine, aes(x = residual.sugar, fill = as.factor(good))) +
-geom_histogram(position = "identity", alpha = .5, bins = 100) +
-scale_fill_manual(values=c("#69b3a2", "#404080")) +
-facet_wrap(vars(good))
+good_labels <- c("0" = "bad", "1" = "good")
+
+ggplot(wine, aes(x = analysed_variable, fill = as.factor(good))) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100) +
+  scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+  facet_wrap(vars(good), labeller=labeller(good = good_labels)) +
+  theme_minimal() +
+  theme(legend.position="none") +
+  labs (
+    x = "Sugar residuals",
+    y = "Count",
+    title = "Sugar residuals by wine quality"
+  )
+```
+
+According to the graphs, both bad and good quality wines have sugar residuals near zero, however, for good wines this number is higher than for bad ones.
+Moreover, sugar residuals of good quality wines have a smoother decrease in frequency, most of them have less sugar.
+Therefore, we can assume that sugar residuals may have negative correlation with wine quality.
+
+* summary statistics
+```{r}
+summary <- wine %>%
+  group_by(good) %>%
+  summarise(
+    n = n(),
+    mean = mean(analysed_variable),
+    median = median(analysed_variable),
+    sd = sd(analysed_variable),
+    iqr = IQR(analysed_variable),
+    max = max(analysed_variable),
+    min = min(analysed_variable)
+  )
+data.frame(summary)
 ```
