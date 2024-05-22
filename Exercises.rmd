@@ -21,17 +21,17 @@ a. load data & add new variable - good
 
 ```{r, results = FALSE}
 wine <- read.csv("winequality-white.csv", sep = ";")
-print(wine)
 
 wine <- mutate(wine, good = ifelse(quality > 5, 1, 0))
 ```
 
 b. residual.sugar analysis
 
-First we'd like to specify the analysed variable to add more flexibility in the further analysis, when we'll need to make the same calculation for another variable.
+First I'd specify the analysed variable to add more flexibility to the further analysis, when we'll need to make the same calculation for another variable.
 
 ```{r, results = FALSE}
 analysed_variable <- wine$residual.sugar
+wine$analysed_variable <- analysed_variable
 ```
 
 * histograms for good and bad quality wines
@@ -71,3 +71,4 @@ summary <- wine %>%
   )
 data.frame(summary)
 ```
+
