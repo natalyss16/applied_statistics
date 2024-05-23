@@ -44,7 +44,7 @@ ggplot(wine, aes(x = analysed_variable, fill = as.factor(good))) +
   scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
   facet_wrap(vars(good), labeller=labeller(good = good_labels)) +
   theme_minimal() +
-  theme(legend.position="none") +
+  theme(legend.position = "none") +
   labs (
     x = "Sugar residuals",
     y = "Count",
@@ -72,3 +72,34 @@ summary <- wine %>%
 data.frame(summary)
 ```
 
+For the "bad" quality wines both mean and median of the sugar residuals are higher than for the "good" wines, which probably (I say probably here as we haven't checked the significance of this difference yet) means that bad wines on average contain more sugar than good ones. 
+They also have a higher variance and range between the values which may mean that the variety of the bad wines is bigger than of the good ones. 
+What is interesting, there is an observation of a good wine with 65.8 sugar residuals which is a huge number compared to the mean and median.
+This might be an outlier, we'll see if that's true drawing a boxplot.
+Additionally, for good wines the difference between the mean and median is quite big, so we can assume that there are more outliers that impact the mean.
+
+* boxplots
+```{r}
+ggplot(wine, aes(x = as.factor(good), y = analysed_variable, fill = as.factor(good))) +
+    geom_boxplot(alpha = .5) +
+    scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+    scale_x_discrete(labels = good_labels) +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs (
+      x = "Wine quality",
+      y = "Sugar residuals",
+      title = "Sugar residuals by wine quality"
+    )
+```
+
+As stated above, the good wine with 65.8 sugar residuals must be an outlier, accoring to the boxplots.
+There are two more outliers, and all of them impact the mean.
+Assuming that better wines on average have less sugar, these observations might be a quality estimation error / human factor or there are sugary wines which are considered good in the modern somelier society.
+
+* QQ plot
+```{r}
+ggplot(wine, aes(sample = residual.sugar)) +
+  stat_qq() +
+  stat_qq_line()
+```
