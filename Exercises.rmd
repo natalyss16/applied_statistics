@@ -13,6 +13,7 @@ output: pdf_document
 ```{r, results=FALSE, message=FALSE}
 library(tidyverse)
 library(ggplot2)
+library(stats)
 ```
 
 ### Exercise 1
@@ -97,9 +98,20 @@ As stated above, the good wine with 65.8 sugar residuals must be an outlier, acc
 There are two more outliers, and all of them impact the mean.
 Assuming that better wines on average have less sugar, these observations might be a quality estimation error / human factor or there are sugary wines which are considered good in the modern somelier society.
 
-* QQ plot
+* QQ plot to compare samples
 ```{r}
-ggplot(wine, aes(sample = residual.sugar)) +
-  stat_qq() +
-  stat_qq_line()
+ggplot(wine, aes(sample = analysed_variable, colour = as.factor(good))) +
+  geom_qq() +
+  geom_qq_line() +
+  geom_abline(slope = 1, intercept = 0, color = "black") +
+  scale_color_manual(values=c("#b37d69", "#6dcc6b"), labels=good_labels) +
+  theme_minimal() +
+  labs (
+      x = "Theoretical quantiles",
+      y = "Sample quantiles",
+      title = "Sugar residuals QQ-plots",
+      colour = "Wine quality"
+    )
 ```
+
+The distribution of both samples seems to be almost equal and right-skewed (this can also be seen on the histograms above).
