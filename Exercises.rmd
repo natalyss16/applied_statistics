@@ -30,7 +30,7 @@ b. residual.sugar analysis
 
 First I'd specify the analysed variable to add more flexibility to the further analysis, when we'll need to make the same calculation for another variable.
 
-```{r, results = FALSE}
+```{r}
 analysed_variable <- wine$residual.sugar
 wine$analysed_variable <- analysed_variable
 ```
@@ -100,18 +100,230 @@ Assuming that better wines on average have less sugar, these observations might 
 
 * QQ plot to compare samples
 ```{r}
-ggplot(wine, aes(sample = analysed_variable, colour = as.factor(good))) +
-  geom_qq() +
-  geom_qq_line() +
-  geom_abline(slope = 1, intercept = 0, color = "black") +
-  scale_color_manual(values=c("#b37d69", "#6dcc6b"), labels=good_labels) +
+good_wine <- wine %>%
+  filter(good == 1)
+
+bad_wine <- wine %>%
+  filter(good == 0)
+
+quantiles <- seq(0, 1, 0.1)
+good_quantiles <- quantile(good_wine$analysed_variable, quantiles)
+bad_quantiles <- quantile(bad_wine$analysed_variable, quantiles)
+
+qq_wine <- data.frame(good_quantiles, bad_quantiles)
+
+ggplot(qq_wine, aes(x = good_quantiles, y = bad_quantiles)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0, color = "#de4dd9") +
+    xlim(0, max(good_quantiles, bad_quantiles)) +
+    ylim(0, max(good_quantiles, bad_quantiles)) +
+    theme_minimal() +
+    labs(title = "QQ Plot: good vs bad wines",
+         x = "Quantiles of good wines",
+         y = "Quantiles of bad wines")
+```
+
+The distribution of both samples seems to be similar and right-skewed (this can also be seen on the histograms above). We also see here the outlier.
+
+* Empirical distribution functions
+
+```{r}
+ggplot(wine, aes(x = analysed_variable, color = as.factor(good))) +
+  stat_ecdf(geom = "step") +
+  scale_color_manual(values=c("#b37d69", "#6dcc6b"), labels=good_labels, name="wine quality") +
   theme_minimal() +
   labs (
-      x = "Theoretical quantiles",
-      y = "Sample quantiles",
-      title = "Sugar residuals QQ-plots",
-      colour = "Wine quality"
+    x = "Sugar residuals",
+    y = "Cumulative probability",
+    title = "Empirical distribution functions"
+  )
+```
+
+The distribution of sugar residuals in good wines is more concentrated around lower values than bad wines.
+Moreover, values are spread out (graphs are smooth).
+
+All of those graphs and summary statistics show the same: good wines in general have lower sugar residuals than bad ones.
+
+c. volatile.acidity
+
+```{r}
+analysed_variable <- wine$volatile.acidity
+wine$analysed_variable <- analysed_variable
+```
+
+* histograms for good and bad quality wines
+
+```{r}
+ggplot(wine, aes(x = analysed_variable, fill = as.factor(good))) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100) +
+  scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+  facet_wrap(vars(good), labeller=labeller(good = good_labels)) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "Volatile acidity",
+    y = "Count",
+    title = "Volatile acidity by wine quality"
+  )
+```
+
+It can be said that means of volatile acidity for both good and bad wines do not seem do be significantly different, however, for good wines it may be a little less than for the bad ones.
+Both distributions are a little right-skewed as well.
+
+* summary statistics
+```{r}
+summary <- wine %>%
+  group_by(good) %>%
+  summarise(
+    n = n(),
+    mean = mean(analysed_variable),
+    median = median(analysed_variable),
+    sd = sd(analysed_variable),
+    iqr = IQR(analysed_variable),
+    max = max(analysed_variable),
+    min = min(analysed_variable)
+  )
+data.frame(summary)
+```
+
+Similarly to sugar residual, for the "bad" quality wines both mean and median of the volatile acidity are higher than for the "good" wines, although difference is not that huge.
+
+* boxplots
+```{r}
+ggplot(wine, aes(x = as.factor(good), y = analysed_variable, fill = as.factor(good))) +
+    geom_boxplot(alpha = .5) +
+    scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+    scale_x_discrete(labels = good_labels) +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs (
+      x = "Wine quality",
+      y = "Volatile acidity",
+      title = "Volatile acidity by wine quality"
     )
 ```
 
-The distribution of both samples seems to be almost equal and right-skewed (this can also be seen on the histograms above).
+Looks like we have much more outliers here than in sugar residuals.
+In general, bad wines seem to have more acids (boxplot is located higher).
+
+* QQ plot to compare samples
+```{r}
+good_quantiles <- quantile(good_wine$analysed_variable, quantiles)
+bad_quantiles <- quantile(bad_wine$analysed_variable, quantiles)
+
+qq_wine <- data.frame(good_quantiles, bad_quantiles)
+
+ggplot(qq_wine, aes(x = good_quantiles, y = bad_quantiles)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0, color = "#de4dd9") +
+    xlim(0, max(good_quantiles, bad_quantiles)) +
+    ylim(0, max(good_quantiles, bad_quantiles)) +
+    theme_minimal() +
+    labs(title = "QQ Plot: good vs bad wines",
+         x = "Quantiles of good wines",
+         y = "Quantiles of bad wines")
+```
+
+The distribution of both samples seems to be similar but with a difference in scal (variance) as dots do not fall on the y = x line, but still form the straight line.
+
+* Empirical distribution functions
+
+```{r}
+ggplot(wine, aes(x = analysed_variable, color = as.factor(good))) +
+  stat_ecdf(geom = "step") +
+  scale_color_manual(values=c("#b37d69", "#6dcc6b"), labels=good_labels, name="wine quality") +
+  theme_minimal() +
+  labs (
+    x = "Volatile acidity",
+    y = "Cumulative probability",
+    title = "Empirical distribution functions"
+  )
+```
+
+Good wines have generally lower values that bad ones; steepness demonstrates that a large number of observations is concentrated within a small range of values.
+Generally, all graphs incicate that good wines tend to have lower volatile acidity than bad wines.
+
+### Exercise 2
+
+```{r}
+analysed_variable <- wine$pH
+wine$analysed_variable <- analysed_variable
+```
+
+a. histogram
+
+mean and standard deviation for plotting normal density
+
+```{r}
+mean_pH <- mean(wine$analysed_variable)
+sd_pH <- sd(wine$analysed_variable)
+
+mean_pH
+sd_pH
+```
+
+* all wines
+
+```{r}
+ggplot(wine, aes(x = analysed_variable)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
+  stat_function(fun = function(x) 
+    # scale normal density to be seen
+    dnorm(x, mean = mean_pH, sd = sd_pH) * 100, aes(color = "#d27786"), linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "pH",
+    y = "Count",
+    title = "pH"
+  )
+```
+
+* good and bad wines
+
+```{r}
+good_wine <- wine %>%
+  filter(good == 1)
+
+bad_wine <- wine %>%
+  filter(good == 0)
+
+mean_pH_good <- mean(good_wine$analysed_variable)
+sd_pH_good <- sd(good_wine$analysed_variable)
+
+mean_pH_bad <- mean(bad_wine$analysed_variable)
+sd_pH_bad <- sd(bad_wine$analysed_variable)
+
+mean_pH_good
+sd_pH_good
+mean_pH_bad
+sd_pH_bad
+```
+
+```{r}
+ggplot(good_wine, aes(x = analysed_variable)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6dcc6b") +
+  stat_function(fun = function(x) 
+    dnorm(x, mean = mean_pH_good, sd = sd_pH_good) * 50, aes(color = "#d27786"), linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "pH",
+    y = "Count",
+    title = "pH for good wines"
+  )
+```
+
+```{r}
+ggplot(bad_wine, aes(x = analysed_variable)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#b37d69") +
+  stat_function(fun = function(x) 
+    dnorm(x, mean = mean_pH_bad, sd = sd_pH_bad) * 30, aes(color = "#d27786"), linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "pH",
+    y = "Count",
+    title = "pH for bad wines"
+  )
+```
