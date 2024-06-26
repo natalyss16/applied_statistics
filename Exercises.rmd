@@ -14,6 +14,7 @@ output: pdf_document
 library(tidyverse)
 library(ggplot2)
 library(stats)
+library(ggpubr)
 ```
 
 ### Exercise 1
@@ -267,15 +268,14 @@ sd_pH
 ```{r}
 ggplot(wine, aes(x = analysed_variable)) +
   geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
-  stat_function(fun = function(x) 
-    # scale normal density to be seen
-    dnorm(x, mean = mean_pH, sd = sd_pH) * 100, aes(color = "#d27786"), linetype = "dashed") +
+  stat_function(fun = function(x) # scale normal density to be seen
+    dnorm(x, mean = mean_pH, sd = sd_pH) * 70, aes(color = "#d27786"), linetype = "dashed") +
   theme_minimal() +
   theme(legend.position = "none") +
   labs (
     x = "pH",
-    y = "Count",
-    title = "pH"
+    y = "count",
+    title = "pH and normal density"
   )
 ```
 
@@ -304,12 +304,12 @@ sd_pH_bad
 ggplot(good_wine, aes(x = analysed_variable)) +
   geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6dcc6b") +
   stat_function(fun = function(x) 
-    dnorm(x, mean = mean_pH_good, sd = sd_pH_good) * 50, aes(color = "#d27786"), linetype = "dashed") +
+    dnorm(x, mean = mean_pH_good, sd = sd_pH_good) * 40, aes(color = "#d27786"), linetype = "dashed") +
   theme_minimal() +
   theme(legend.position = "none") +
   labs (
     x = "pH",
-    y = "Count",
+    y = "count",
     title = "pH for good wines"
   )
 ```
@@ -318,12 +318,103 @@ ggplot(good_wine, aes(x = analysed_variable)) +
 ggplot(bad_wine, aes(x = analysed_variable)) +
   geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#b37d69") +
   stat_function(fun = function(x) 
-    dnorm(x, mean = mean_pH_bad, sd = sd_pH_bad) * 30, aes(color = "#d27786"), linetype = "dashed") +
+    dnorm(x, mean = mean_pH_bad, sd = sd_pH_bad) * 20, aes(color = "#d27786"), linetype = "dashed") +
   theme_minimal() +
   theme(legend.position = "none") +
   labs (
     x = "pH",
-    y = "Count",
+    y = "count",
     title = "pH for bad wines"
   )
+```
+
+It can be said that pH follows the normal distribution for bad wines, but for good wines and wines in total the distribution seems to be bimodal with two peaks.
+
+b. QQ plots
+
+* all wines
+
+```{r}
+qq_all <- ggplot(wine, aes(sample = pH)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+* good wines
+
+```{r}
+qq_good <- ggplot(good_wine, aes(sample = pH)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+* bad wines
+
+```{r}
+qq_bad <- ggplot(bad_wine, aes(sample = pH)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )  
+```
+
+```{r}
+ggarrange(qq_all, qq_good, qq_bad, labels = c("all", "good", "bad"), ncol = 3, nrow = 1)
+```
+b. PP plots
+
+* all wines
+
+```{r}
+pp_all <- ggplot(wine, aes(sample = pH)) +
+  stat_qq(distribution = qnorm, dparams = list(mean = mean_pH, sd = sd_pH)) +
+  stat_qq_line(distribution = qnorm, dparams = list(mean = mean_pH, sd = sd_pH)) +
+  theme_minimal() +
+  labs (
+    x = "theoretical probabilities",
+    y = "empirical probabilities"
+  )  
+```
+
+* good wines
+
+```{r}
+pp_good <- ggplot(good_wine, aes(sample = pH)) +
+  stat_qq(distribution = qnorm, dparams = list(mean = mean_pH_good, sd = sd_pH_good)) +
+  stat_qq_line(distribution = qnorm, dparams = list(mean = mean_pH_good, sd = sd_pH_good)) +
+  theme_minimal() +
+  labs (
+    x = "theoretical probabilities",
+    y = "empirical probabilities"
+  )
+```
+
+* bad wines
+
+```{r}
+pp_bad <- ggplot(bad_wine, aes(sample = pH)) +
+  stat_qq(distribution = qnorm, dparams = list(mean = mean_pH_bad, sd = sd_pH_bad)) +
+  stat_qq_line(distribution = qnorm, dparams = list(mean = mean_pH_bad, sd = sd_pH_bad)) +
+  theme_minimal() +
+  labs (
+    x = "theoretical probabilities",
+    y = "empirical probabilities"
+  )
+```
+
+```{r}
+ggarrange(pp_all, pp_good, pp_bad, labels = c("all", "good", "bad"), ncol = 3, nrow = 1)
 ```
