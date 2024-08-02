@@ -11,10 +11,16 @@ output: pdf_document
 ### Load libraries
 
 ```{r, results=FALSE, message=FALSE}
+#install.packages("extraDistr")
+#install.packages('tinytex')
+#tinytex::install_tinytex()
+
 library(tidyverse)
 library(ggplot2)
 library(stats)
 library(ggpubr)
+library(extraDistr)
+library(tinytex)
 ```
 
 ### Exercise 1
@@ -23,8 +29,9 @@ a. load data & add new variable - good
 
 ```{r, results = FALSE}
 wine <- read.csv("winequality-white.csv", sep = ";")
-
 wine <- mutate(wine, good = ifelse(quality > 5, 1, 0))
+
+head(wine)
 ```
 
 b. residual.sugar analysis
@@ -417,4 +424,294 @@ pp_bad <- ggplot(bad_wine, aes(sample = pH)) +
 
 ```{r}
 ggarrange(pp_all, pp_good, pp_bad, labels = c("all", "good", "bad"), ncol = 3, nrow = 1)
+```
+
+Samples probably do not follow normal distribution, as tails of QQ and PP plots do not lay on the line.
+
+c. empirical distribution function + confidence intervals
+
+```{r}
+# calculate confidence bands
+
+bands <- function(data, analysed_variable, alpha) {
+  n <- length(data$analysed_variable)
+  mean <- mean(data$analysed_variable)
+  sd <- sd(data$analysed_variable)
+  z_alpha <- qnorm(1 - alpha / 2)
+  lower <- mean - z_alpha * sd / sqrt(n)
+  upper <- mean + z_alpha * sd / sqrt(n)
+  data.frame(lower, upper)
+}
+
+alpha <- 0.05
+all_bands <- bands(wine, analysed_variable, alpha)
+good_bands <- bands(good_wine, analysed_variable, alpha)
+bad_bands <- bands(bad_wine, analysed_variable, alpha)
+```
+
+```{r}
+ggplot() +
+  stat_ecdf(data = wine, aes(x = analysed_variable), color = "#6a6ad9") +
+  geom_vline(xintercept = all_bands$lower, color = "#6a6ad9") +
+  geom_vline(xintercept = all_bands$upper, color = "#6a6ad9") +
+  stat_ecdf(data = good_wine, aes(x = analysed_variable), color = "#6dcc6b") +
+  geom_vline(xintercept = good_bands$lower, color = "#6dcc6b") +
+  geom_vline(xintercept = good_bands$upper, color = "#6dcc6b") +
+  stat_ecdf(data = bad_wine, aes(x = analysed_variable), color = "#b37d69") +
+  geom_vline(xintercept = bad_bands$lower, color = "#b37d69") +
+  geom_vline(xintercept = bad_bands$upper, color = "#b37d69")
+```
+
+d. EDF + uniform confidence bands
+
+e. EDFs for good and bad wines
+
+### Exercise 3
+
+a. MLE for mu
+
+$$
+f(x; \mu, \sigma) = \frac{1}{2\sigma} \exp \left( -\frac{|x - \mu|}{\sigma} \right)
+$$
+
+The log-likelihood function:
+
+$$
+\ell(\mu, \sigma) = \sum_{i=1}^n \log \left( \frac{1}{2\sigma} \exp \left( -\frac{|X_i - \mu|}{\sigma} \right) \right) =
+$$
+
+$$
+= \ell(\mu, \sigma) = -n \log(2\sigma) - \frac{1}{\sigma} \sum_{i=1}^n |X_i - \mu|
+$$
+
+To find MLE for \(\mu\), we need to maximize \(\ell(\mu, \sigma)\) with respect to \(\mu\)
+This is equivalent to minimizing the sum of absolute deviations:
+
+$$
+\text{minimize} \sum_{i=1}^n |X_i - \mu|
+$$
+
+According to statistics, the sum of absolute deviations is minimal at the median
+
+Having n even gives us two equally good estimators, but when number of observations is odd, the estimator will be unique.
+
+b. quantile
+
+* for 20 observations
+
+```{r}
+set.seed(999)
+
+n <- 20
+mu <- 1
+sigma <- 1
+sample_20 <- rlaplace(n, mu, sigma)
+
+real_median_20 <- median(sample_20)
+
+mle_quantile_20 <- c()
+diff_quantile_20 <- c()
+
+for(type in 1:9) {
+  mle_quantile_20[type] <- quantile(sample_20, 0.5, type = type)
+  diff_quantile_20[type] <- mle_quantile_20[type] - real_median_20
+}
+
+diff_quantile_20
+```
+
+So, types 2, 5, 6, 7, 8, 9 of function quantile predict better than 1, 3 and 4 types
+Here, the choice of quantile type significantly affects the result because this sample may not be representative due to small number of observations
+
+* for 1000 observations
+
+```{r}
+set.seed(999)
+
+n <- 1000
+mu <- 1
+sigma <- 1
+sample_1000 <- rlaplace(n, mu, sigma)
+
+real_median_1000 <- median(sample_1000)
+
+mle_quantile_1000 <- c()
+diff_quantile_1000 <- c()
+
+for(type in 1:9) {
+  mle_quantile_1000[type] <- quantile(sample_1000, 0.5, type = type)
+  diff_quantile_1000[type] <- mle_quantile_1000[type] - real_median_1000
+}
+
+diff_quantile_1000
+```
+
+For 1000 observations the best predictors are 2, 5, 6-9 types of fn quantile, similar as for 20 observations.
+It is noticable that the difference for other types of quantile fn is much smaller than for 20 observations, which means that increasing the number of observations estimator gets more confident and shows better results
+Looks like we just proved the law of large numbers :)
+
+c. MLE function
+
+```{r}
+mle_optimise <- function(data) {
+  log_lik_laplace <- function(mu, data) {
+    return(sum(abs(data - mu))) # from calculations in a
+  }
+  result <- optimise(
+    log_lik_laplace,
+    interval = c(min(data), max(data)),
+    data = data)
+  return(result$minimum)
+}
+
+mle_optimise_20 <- mle_optimise(sample_20)
+mle_quantile_20 <- quantile(sample_20, 0.5, type = 2) # taking second as one of the best types
+
+mle_optimise_1000 <- mle_optimise(sample_1000)
+mle_quantile_1000 <- quantile(sample_1000, 0.5, type = 2)
+
+results <- data.frame(
+  optimise = c(mle_optimise_20, mle_optimise_1000),
+  quantile = c(mle_quantile_20, mle_quantile_1000),
+  real = c(real_median_20, real_median_1000),
+  row.names = c("20", "1000")
+)
+print(results)
+```
+
+Function 'optimise' uses a combination of golden section search and successive parabolic interpolation to find the minimum or maximum in the selected interval.
+Golden section search uses golden ratio to narrow the range of values that potentially can be the extremums, while successive parabolic interpolation fits a quadratic function through three points, then the vertex is used for new fitting and so on.
+
+The Newton-Raphson method is not suitable for Laplace function, as it requires continuously differentable function, but Laplace one is not smooth at the point $ \mu = X_i$
+
+Talking about the results, quantile estimates better, because, as I understood, it simply takes the median, knowing that it's a best estimator
+However, optimise function also gives a pretty close estimate especially when increasing the sample size.
+
+d. MLE distribution
+
+* sample size = 20
+
+```{r}
+set.seed(1000)
+
+n = 20 # sample size
+m = 5000 # num of MLEs
+mu <- 1
+sigma <- 1
+
+mle_generator <- c()
+
+for(i in 1:m) {
+  mle_sample <- rlaplace(n, mu, sigma)
+  mle_generator[i] <- mle_optimise(mle_sample)
+}
+
+mle_df_20 <- data.frame(mle_generator)
+head(mle_df_20)
+
+ggplot(mle_df_20, aes(x = mle_generator)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6dcc6b") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "MLEs",
+    y = "count",
+    title = "MLEs for sample size = 20"
+  )
+
+ggplot(mle_df_20, aes(sample = mle_generator)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+* sample size = 1000
+
+```{r}
+set.seed(1000)
+
+n = 1000 # sample size
+m = 5000 # num of MLEs
+mu <- 1
+sigma <- 1
+
+mle_generator <- c()
+
+for(i in 1:m) {
+  mle_sample <- rlaplace(n, mu, sigma)
+  mle_generator[i] <- mle_optimise(mle_sample)
+}
+
+mle_df_1000 <- data.frame(mle_generator)
+head(mle_df_1000)
+
+ggplot(mle_df_1000, aes(x = mle_generator)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6ba4cc") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "MLEs",
+    y = "count",
+    title = "MLEs for sample size = 20"
+  )
+
+ggplot(mle_df_1000, aes(sample = mle_generator)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+For samples of size 20 estimators visually followed the normal distribution, but QQ plot showed that it is skewed a little
+But, increasing the sample size to 1000 produced perfect normal distribution, giving us the representation of the central limit theorem.
+
+* variances
+
+```{r}
+var(mle_df_20)
+var(mle_df_1000)
+```
+
+Increasing the sample size also highly decreases the variance, therefore, increases our confidence in predicting the true parameter.
+
+### Exercise 4
+
+```{r}
+house <- read.csv("kc_house_data.csv") %>%
+  select(price, bedrooms, bathrooms,
+  sqft_living, floors, view,
+  condition, grade, yr_built)
+
+head(house)
+summary(house)
+```
+
+a. linear model for price
+
+```{r}
+model_price <- lm(price ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built,
+  data = house)
+
+summary(model_price)
+```
+
+All variables are significant, $R^2$ equals to 0.6359 which means that ~ 64% of variance in the price is explained by those variables
+
+```{r}
+residuals <- model_price$residuals
+fitted_values <- model_price$fitted.values
+
+ggplot(house, aes(x = fitted_values, y = price)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs. Fitted Values", x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
 ```
