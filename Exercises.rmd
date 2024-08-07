@@ -705,13 +705,140 @@ summary(model_price)
 
 All variables are significant, $R^2$ equals to 0.6359 which means that ~ 64% of variance in the price is explained by those variables
 
-```{r}
-residuals <- model_price$residuals
-fitted_values <- model_price$fitted.values
+* residual analysis
 
-ggplot(house, aes(x = fitted_values, y = price)) +
-  geom_point() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  labs(title = "Residuals vs. Fitted Values", x = "Fitted Values", y = "Residuals") +
-  theme_minimal()
+```{r}
+# residuals vs fitted
+res_fit <- plot(model_price, which=1, col=c("blue"))
+
+# q-q plot
+qq <- plot(model_price, which=2, col=c("red"))
+
+# scale-location
+scale <- plot(model_price, which=3, col=c("pink"))
+
+ggarrange(res_fit, qq, scale, ncol = 1, nrow = 3)
 ```
+
+Residuals are not normally distributed and their variance is not the same, which means that our model violates normality and homoskedasticity of errors assumptions.
+
+b. price vs log(price)
+
+* histograms
+
+```{r}
+price_hist <- ggplot(house, aes(x = price)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+log_price <- log(house$price)
+
+log_price_hist <- ggplot(house, aes(x = log_price)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ggarrange(price_hist, log_price_hist, labels = c("price", "log_price"), ncol = 1, nrow = 2)
+```
+
+* QQ plots
+
+```{r}
+qq_price <- ggplot(house, aes(sample = price)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal()
+
+qq_log_price <- ggplot(house, aes(sample = log_price)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal()
+
+ggarrange(qq_price, qq_log_price, labels = c("price", "log_price"), ncol = 2, nrow = 1)
+```
+
+Log(price) looks closer to the normal distribution that price.
+
+* model fit
+
+```{r}
+model_log_price <- lm(log_price ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built,
+  data = house)
+
+summary(model_log_price)
+
+# residuals vs fitted
+plot(model_log_price, which=1, col=c("blue"))
+
+# q-q plot
+plot(model_log_price, which=2, col=c("red"))
+
+# scale-location
+plot(model_log_price, which=3, col=c("pink"))
+```
+
+After changing price to log(price), all variables are still significant, R^2 is also around 64%, which means that predictive quality of the model didn't decrease
+Additionally, residuals look much better - they are normally distributed and variance seems constant for all values
+By looking at the covariates we can see the the percentage effect of each, which is much more convenient for further analysis than looking at absolute change.
+
+c. effect of covariates
+
+* intercept: expected value of log(price) is ~ 21.51 when all other parameters are zero
+* bedrooms: each additional bedroom decreases the price by ~ 2.34%
+This, actually, doesn't make sense, by looking at the graph below, seems that the one outlier changes the sign of the coefficient, model fit, however, it should be positive.
+* bathrooms: each additional bathroom increases the price by ~ 8.5%
+* sqft_living: each additional square foot of living area increases the price by ~ 0.0166%
+* floors: each additional floor in the house increases the price by ~ 8.57%
+* view: each additional view increases the price by ~ 6.74%
+* condition: each additional unit of condition rating increases the price by ~ 4.23%
+* grade: each additional grade increases the price by ~ 22.18%
+* yr_built: each additional year when house was built decreases the price by ~ 0.55%
+
+```{r}
+bedrooms <- ggplot(house, aes(x = bedrooms, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs num of bedrooms", x = "bedrooms", y = "log(price)")
+
+bathrooms <- ggplot(house, aes(x = bathrooms, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs num of bathrooms", x = "bathrooms", y = "log(price)")
+
+sqft <- ggplot(house, aes(x = sqft_living, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs sqft", x = "sqft", y = "log(price)")
+
+floors <- ggplot(house, aes(x = floors, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs num of floors", x = "floors", y = "log(price)")
+
+views <- ggplot(house, aes(x = view, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs num of views", x = "views", y = "log(price)")
+
+condition <- ggplot(house, aes(x = condition, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs condition", x = "condition", y = "Log(price)")
+
+grade <- ggplot(house, aes(x = grade, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs grade", x = "grade", y = "Log(price)")
+
+yr_built <- ggplot(house, aes(x = yr_built, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+#  labs(title = "Log(price) vs year built", x = "year built", y = "Log(price)")
+
+ggarrange(bedrooms, bathrooms, sqft, floors, views, condition, grade, yr_built,
+#  labels = c("bedrooms", "bathrooms", "sqft", "floors", "views", "condition", "grade", "yr_built"), 
+  ncol = 2, nrow = 4)
+```
+
