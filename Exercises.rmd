@@ -1,5 +1,5 @@
 ---
-title: "Exercies"
+title: "Exercises"
 author: "Natali Tckvitishvili"
 date: "`r Sys.Date()`"
 output: pdf_document
@@ -13,7 +13,8 @@ output: pdf_document
 ```{r, results=FALSE, message=FALSE}
 #install.packages("extraDistr")
 #install.packages('tinytex')
-#tinytex::install_tinytex()
+#install.packages('ggpubr')
+#install.packages('tidyverse')
 
 library(tidyverse)
 library(ggplot2)
@@ -582,7 +583,7 @@ print(results)
 Function 'optimise' uses a combination of golden section search and successive parabolic interpolation to find the minimum or maximum in the selected interval.
 Golden section search uses golden ratio to narrow the range of values that potentially can be the extremums, while successive parabolic interpolation fits a quadratic function through three points, then the vertex is used for new fitting and so on.
 
-The Newton-Raphson method is not suitable for Laplace function, as it requires continuously differentable function, but Laplace one is not smooth at the point $ \mu = X_i$
+The Newton-Raphson method is not suitable for Laplace function, as it requires continuously differentable function, but Laplace one is not smooth at the point  $\mu = X_i$
 
 Talking about the results, quantile estimates better, because, as I understood, it simply takes the median, knowing that it's a best estimator
 However, optimise function also gives a pretty close estimate especially when increasing the sample size.
@@ -716,8 +717,10 @@ qq <- plot(model_price, which=2, col=c("red"))
 
 # scale-location
 scale <- plot(model_price, which=3, col=c("pink"))
+```
 
-ggarrange(res_fit, qq, scale, ncol = 1, nrow = 3)
+```{r}
+ggarrange(res_fit, qq, scale, ncol = 3, nrow = 1)
 ```
 
 Residuals are not normally distributed and their variance is not the same, which means that our model violates normality and homoskedasticity of errors assumptions.
@@ -738,8 +741,10 @@ log_price_hist <- ggplot(house, aes(x = log_price)) +
   geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
   theme_minimal() +
   theme(legend.position = "none")
+```
 
-ggarrange(price_hist, log_price_hist, labels = c("price", "log_price"), ncol = 1, nrow = 2)
+```{r}
+ggarrange(price_hist, log_price_hist, ncol = 3, nrow = 1)
 ```
 
 * QQ plots
@@ -754,7 +759,9 @@ qq_log_price <- ggplot(house, aes(sample = log_price)) +
   stat_qq() +
   stat_qq_line() +
   theme_minimal()
+```
 
+```{r}
 ggarrange(qq_price, qq_log_price, labels = c("price", "log_price"), ncol = 2, nrow = 1)
 ```
 
@@ -763,7 +770,7 @@ Log(price) looks closer to the normal distribution that price.
 * model fit
 
 ```{r}
-model_log_price <- lm(log_price ~ bedrooms + bathrooms + sqft_living +
+model_log_price <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
   floors + view + condition + grade + yr_built,
   data = house)
 
@@ -836,9 +843,92 @@ yr_built <- ggplot(house, aes(x = yr_built, y = log_price)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "lm", se = FALSE, color = "blue")
 #  labs(title = "Log(price) vs year built", x = "year built", y = "Log(price)")
+```
 
+```{r}
 ggarrange(bedrooms, bathrooms, sqft, floors, views, condition, grade, yr_built,
 #  labels = c("bedrooms", "bathrooms", "sqft", "floors", "views", "condition", "grade", "yr_built"), 
   ncol = 2, nrow = 4)
 ```
 
+* adding squares
+
+And I also removed an outlier in bedrooms here to change the sign of the coefficient
+
+```{r}
+house_clean <- house %>%
+  filter(bedrooms < 33)
+
+summary(house_clean)
+log_price_clean <- log(house_clean$price)
+```
+
+```{r}
+model_log_price_sq <- lm(log(price) ~ bedrooms + bathrooms + sqft_living  +
+  floors + view + condition + grade + yr_built + I(sqft_living^2) + I(yr_built^2),
+  data = house)
+
+summary(model_log_price_sq)
+```
+
+I don't know why the coefficient for bedrooms is still negative, while on the graph the slope is for sure positive
+
+Adding squares (which are significant predictors) slightly improves the model fit (0.6492 R^2 compared to 0.6426)
+
+d. prediction
+
+```{r}
+set.seed(1122)
+sample_size <- 10806
+train_indices <- sample(1:nrow(house), sample_size)
+house_train <- house[train_indices, ]
+house_test <- house[-train_indices, ]
+summary(house_train)
+summary(house_test)
+```
+
+* models b and c on training dataset
+```{r}
+# model b
+model_log_price <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built,
+  data = house_train)
+
+# model c
+model_log_price_sq <- lm(log(price) ~ bedrooms + bathrooms + sqft_living  +
+  floors + view + condition + grade + yr_built + I(sqft_living^2) + I(yr_built^2),
+  data = house_train)
+```
+
+* predictions on test dataset
+```{r}
+# predictions
+pred_log_price <- predict(model_log_price, newdata = house_test)
+pred_log_price_sq <- predict(model_log_price_sq, newdata = house_test)
+```
+
+* MSE for both models
+
+```{r}
+mse_log_price <- mean((log(house_test$price) - pred_log_price)^2)
+mse_log_price_sq <- mean((log(house_test$price) - pred_log_price_sq)^2)
+mse_log_price
+mse_log_price_sq
+```
+
+The second model gives a better prediction, as MSE there is smaller
+Let's improve the model by:
+1. adding interaction bedrooms*bathrooms as they are correlated (bathrooms means bathroom per bedroom)
+1. adding interaction condition*grade as they also seem correlated
+
+```{r}
+model_log_sqft <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built +
+  I(sqft_living^2) + I(yr_built^2) +
+  bedrooms*bathrooms + condition*grade,
+  data = house_train)
+
+pred_log_sqft <- predict(model_log_sqft, newdata = house_test)
+mean((log(house_test$price) - pred_log_sqft)^2)
+mse_log_price_sq
+```
