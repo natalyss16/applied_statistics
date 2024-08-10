@@ -922,13 +922,20 @@ Let's improve the model by:
 1. adding interaction condition*grade as they also seem correlated
 
 ```{r}
+house_clean_train <- house_train %>%
+  filter(bedrooms < 33)
+```
+
+```{r}
 model_log_sqft <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
   floors + view + condition + grade + yr_built +
   I(sqft_living^2) + I(yr_built^2) +
   bedrooms*bathrooms + condition*grade,
-  data = house_train)
+  data = house_clean_train)
 
 pred_log_sqft <- predict(model_log_sqft, newdata = house_test)
 mean((log(house_test$price) - pred_log_sqft)^2)
 mse_log_price_sq
 ```
+
+MSE in this case is a bit smaller 
