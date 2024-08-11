@@ -1042,27 +1042,185 @@ optimal_lambda <- function(lambda) {
   mse <- colMeans((pred_hitters - y_test)^2)
   return(mse)
 }
+```
 
+```{r, warning=FALSE}
 potential_lambdas <- 10^seq(10, -2, length = 100)
-mse <- sapply(potential_lambdas, optimal_lambda)
+mse_ridge <- sapply(potential_lambdas, optimal_lambda)
 
-mse_df <- data.frame(
+mse_ridge_df <- data.frame(
   log_lambda = log(potential_lambdas),
-  mse = mse
+  mse = mse_ridge
 )
 
 # to display the needed point on the graph
-best_lambda <- potential_lambdas[which.min(mse)]
-min_mse <- min(mse)
+best_lambda_ridge <- potential_lambdas[which.min(mse_ridge)]
+min_mse_ridge <- min(mse_ridge)
 
-print(best_lambda, min_mse)
-
-ggplot(mse_df, aes(x = log_lambda, y = mse)) +
-  geom_point(color = "#3c5abe") +
-  geom_point(aes(x = log(best_lambda), y = min_mse), color = "#82dc82", size = 1) +
+ggplot(mse_ridge_df, aes(x = log_lambda, y = mse)) +
+  geom_point(color = "#818db2") +
+  geom_point(aes(x = log(best_lambda_ridge), y = min_mse_ridge), color = "#242824", size = 1) +
   labs(
     x = "log(lambda)",
     y = "MSE"
   ) +
+  annotate("text", x = log(best_lambda_ridge) + 7, y = min_mse_ridge,
+           label = paste("min MSE = ", round(min_mse_ridge, 2),
+                         "\nlog(lambda) = ", round(log(best_lambda_ridge), 2)),
+           vjust = -0.5, color = "#242824") +
   theme_minimal()
 ```
+
+f. fitting with optimal lambda
+
+```{r}
+lambda <- best_lambda_ridge
+ridge_hitters <- glmnet(X, y, alpha = 0, lambda = lambda)
+as.data.frame(as.matrix(coef(ridge_hitters)))
+```
+
+The most important variables are ones with bigger absolute values
+1. Division - players in the division W have much lower salaries than ones in division e
+2. League - being in league A is associated with lower salaries, while league N players in general have higher
+3. NewLeague - players in the New League N tend to have higher salaries
+4. Years - with the increase in the num of years in the major leagues the salary also increases
+
+There are no coefficients that equal zero, as ridge regression doesn't make coefficients equal to zero.
+
+g. lasso regression
+
+```{r}
+optimal_lambda_lasso <- function(lambda) {
+  lasso_hitters_train <- glmnet(X_train, y_train, alpha = 1, lambda = lambda)
+  pred_hitters <- predict(lasso_hitters_train, newx = X_test)
+  mse <- colMeans((pred_hitters - y_test)^2)
+  return(mse)
+}
+
+mse_lasso <- sapply(potential_lambdas, optimal_lambda_lasso)
+
+mse_lasso_df <- data.frame(
+  log_lambda = log(potential_lambdas),
+  mse = mse_lasso
+)
+
+best_lambda_lasso <- potential_lambdas[which.min(mse_lasso)]
+min_mse_lasso <- min(mse_lasso)
+
+ggplot(mse_lasso_df, aes(x = log_lambda, y = mse)) +
+  geom_point(color = "#818db2") +
+  geom_point(aes(x = log(best_lambda_lasso), y = min_mse_lasso), color = "#242824", size = 1) +
+  labs(
+    x = "log(lambda)",
+    y = "MSE"
+  ) +
+  annotate("text", x = log(best_lambda_lasso) + 7, y = min_mse_lasso,
+           label = paste("min MSE = ", round(min_mse_lasso, 2),
+                         "\nlog(lambda) = ", round(log(best_lambda_lasso), 2)),
+           vjust = -0.5, color = "#242824") +
+  theme_minimal()
+
+lambda <- best_lambda_lasso
+lasso_hitters <- glmnet(X, y, alpha = 1, lambda = lambda)
+as.data.frame(as.matrix(coef(lasso_hitters)))
+```
+
+The results are very different compared to the ridge regression. I suppose, this happened because lasso regression sets some coefficients to zero to ensure that no unsignificant variables are included in the model.
+However, the important variables still differ between these two models :( 
+Maybe the most important conclusion we can get from this task is that we should be careful while using the regularization and choose the type correctly depending on the purpose of our research - prediction or feature selection.
+
+### Exercise 6
+
+a. GLM for donation with frequency and amount
+
+```{r}
+donations <- read.csv('transfusion.data')
+names(donations) <- c('recency', 'frequency', 'amount', 'time', 'donation')
+head(donations)
+summary(donations)
+```
+
+We will use the binomial family in the model, as we want to predict the binary outcome
+
+```{r}
+# frequency GLM model
+freq_model <- glm(donation ~ frequency, data = donations, family = binomial)
+summary(freq_model)
+
+# amount GLM model
+amount_model <- glm(donation ~ amount, data = donations, family = binomial)
+summary(amount_model)
+
+# comparing using AIC
+AIC(freq_model, amount_model)
+
+ggplot(donations, aes(x = amount, y = frequency)) +
+  geom_point() +
+  labs(
+    x = "amount",
+    y = "frequency"
+    )
+```
+
+Frequency and amount variables are highly correlated, which is logical as the amount of blood taken is fixed and its sum depends only on the frequency on donation
+We don't need both variables in our model, as multicollinearity decreases its accuracy
+
+b. different link functions
+
+```{r}
+recency_logit <- glm(donation ~ recency, data = donations, family = binomial(link = "logit"))
+summary(recency_logit)
+
+recency_probit <- glm(donation ~ recency, data = donations, family = binomial(link = "probit"))
+summary(recency_probit)
+
+recency_cauchit <- glm(donation ~ recency, data = donations, family = binomial(link = "cauchit"))
+summary(recency_probit)
+
+recency_log <- glm(donation ~ recency, data = donations, family = binomial(link = "log"))
+summary(recency_probit)
+
+recency_cloglog <- glm(donation ~ recency, data = donations, family = binomial(link = "cloglog"))
+summary(recency_cloglog)
+
+AIC(recency_logit, recency_probit, recency_log, recency_cauchit, recency_cloglog)
+```
+
+While comparing using AIC, the lowest result is obtained by complementary log-log link, however, the results are not really different from each other.
+
+c. best prediction
+
+* train and test data
+```{r}
+set.seed(1122)
+sample_size <- 374
+train_indices <- sample(1:nrow(donations), sample_size)
+donations_train <- donations[train_indices, ]
+donations_test <- donations[-train_indices, ]
+```
+
+* model fit
+
+We will not include amount there, as it is highly correlated with frequency
+
+```{r}
+donations_model <- glm(donation ~ recency + frequency + time,
+  data = donations_train,
+  family = binomial)
+summary(donations_model)
+
+pred_donations <- predict(donations_model, newx = donations_test)
+```
+
+* classification
+
+```{r}
+treshhold <- 0.5
+pred_donations_class <- ifelse(pred_donations < treshhold, 0, 1)
+real_donations_class <- donations_test$donation
+CE <- mean(abs(real_donations_class - pred_donations_class))
+CE
+```
+
+* model improvements
+
