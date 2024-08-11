@@ -15,6 +15,7 @@ output: pdf_document
 #install.packages('tinytex')
 #install.packages('ggpubr')
 #install.packages('tidyverse')
+#install.packages('glmnet')
 
 library(tidyverse)
 library(ggplot2)
@@ -22,6 +23,7 @@ library(stats)
 library(ggpubr)
 library(extraDistr)
 library(tinytex)
+library(glmnet)
 ```
 
 ### Exercise 1
@@ -847,22 +849,11 @@ yr_built <- ggplot(house, aes(x = yr_built, y = log_price)) +
 
 ```{r}
 ggarrange(bedrooms, bathrooms, sqft, floors, views, condition, grade, yr_built,
-#  labels = c("bedrooms", "bathrooms", "sqft", "floors", "views", "condition", "grade", "yr_built"), 
   ncol = 2, nrow = 4)
 ```
 
 * adding squares
-
-And I also removed an outlier in bedrooms here to change the sign of the coefficient
-
-```{r}
-house_clean <- house %>%
-  filter(bedrooms < 33)
-
-summary(house_clean)
-log_price_clean <- log(house_clean$price)
-```
-
+  
 ```{r}
 model_log_price_sq <- lm(log(price) ~ bedrooms + bathrooms + sqft_living  +
   floors + view + condition + grade + yr_built + I(sqft_living^2) + I(yr_built^2),
@@ -870,8 +861,6 @@ model_log_price_sq <- lm(log(price) ~ bedrooms + bathrooms + sqft_living  +
 
 summary(model_log_price_sq)
 ```
-
-I don't know why the coefficient for bedrooms is still negative, while on the graph the slope is for sure positive
 
 Adding squares (which are significant predictors) slightly improves the model fit (0.6492 R^2 compared to 0.6426)
 
@@ -918,8 +907,9 @@ mse_log_price_sq
 
 The second model gives a better prediction, as MSE there is smaller
 Let's improve the model by:
-1. adding interaction bedrooms*bathrooms as they are correlated (bathrooms means bathroom per bedroom)
-1. adding interaction condition*grade as they also seem correlated
+1. removing outlier with 33 bedrooms in training dataset
+2. adding interaction bedrooms*bathrooms as they are correlated (bathrooms means bathroom per bedroom)
+3. adding interaction condition*grade as they also seem correlated
 
 ```{r}
 house_clean_train <- house_train %>%
@@ -934,8 +924,145 @@ model_log_sqft <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
   data = house_clean_train)
 
 pred_log_sqft <- predict(model_log_sqft, newdata = house_test)
-mean((log(house_test$price) - pred_log_sqft)^2)
-mse_log_price_sq
+mean((log(house_test$price) - pred_log_sqft)^2) # new
+mse_log_price_sq # old
 ```
 
-MSE in this case is a bit smaller 
+MSE in this case is a bit smaller which means that the new model predicts better, however, it still can be a random effect
+
+### Exercise 5
+
+a. loading data
+
+```{r}
+hitters <- read.csv("Hitters.csv") %>%
+  na.omit()
+
+head(hitters)
+summary(hitters)
+```
+
+b. condition number
+
+```{r}
+y <- hitters$Salary
+X <- hitters %>%
+  select(-Salary)
+
+# create matrix and replace categorical variables with columns 1 or 0
+X <- model.matrix(~ . -1, data = X) # -1 for removing intercept
+head(X)
+```
+
+```{r}
+XtX <- t(X) %*% X
+
+eigenvalues <- eigen(XtX)$values
+
+condition_number <- max(eigenvalues) / min(eigenvalues)
+condition_number
+```
+
+The condition number is very high, which shows that there is a high multicollinearity among some variables
+
+* standardization
+
+```{r}
+X_stand <- scale(X)
+
+XtX_stand <- t(X_stand) %*% X_stand
+
+eigenvalues_stand <- eigen(XtX_stand)$values
+
+condition_number_stand <- max(eigenvalues_stand) / min(eigenvalues_stand)
+condition_number_stand
+```
+
+Standardization didn't help, we even onbtained much higher number because there is a very small eigenvalue 2.131628e-14
+
+c. models
+
+* standard linear model
+
+```{r}
+lm_hitters <- lm(y ~ X)
+summary(lm_hitters)
+```
+
+* ridge regression
+
+```{r}
+lambda <- 70
+ridge_hitters <- glmnet(X, y, alpha = 0, lambda = lambda)
+as.data.frame(as.matrix(coef(ridge_hitters)))
+```
+
+* coefficients
+
+```{r}
+lm_coefs <- as.vector(round(coef(lm_hitters), 4))
+ridge_coefs <- as.vector(round(coef(ridge_hitters), 4))
+variables <- c("Intercept", colnames(X))
+
+coefs <- data.frame(
+  variable = variables,
+  lm_coefs = lm_coefs,
+  ridge_coefs = ridge_coefs,
+  diff = lm_coefs - ridge_coefs
+)
+
+coefs
+```
+
+I would say that ridge coefficients tend to be closer to zero and in general smaller, than standard linear model ones.
+
+d. data split
+
+```{r}
+set.seed(1122)
+
+# we'll take 80% train and 20% test
+train_indices <- sample(1:nrow(hitters), size = 0.8 * nrow(hitters))
+hitters_train <- hitters[train_indices, ]
+hitters_test <- hitters[-train_indices, ]
+
+# design matrices
+X_train <- model.matrix(Salary ~ ., data = hitters_train)
+y_train <- hitters_train$Salary
+
+X_test <- model.matrix(Salary ~ ., data = hitters_test)
+y_test <- hitters_test$Salary
+```
+
+e. best lambda
+```{r}
+optimal_lambda <- function(lambda) {
+  ridge_hitters_train <- glmnet(X_train, y_train, alpha = 0, lambda = lambda)
+  pred_hitters <- predict(ridge_hitters_train, newx = X_test)
+  mse <- colMeans((pred_hitters - y_test)^2)
+  return(mse)
+}
+
+potential_lambdas <- 10^seq(10, -2, length = 100)
+mse <- sapply(potential_lambdas, optimal_lambda)
+
+mse_df <- data.frame(
+  log_lambda = log(potential_lambdas),
+  mse = mse
+)
+
+# to display the needed point on the graph
+best_lambda <- potential_lambdas[which.min(mse)]
+min_mse <- min(mse)
+
+print(best_lambda, min_mse)
+
+ggplot(mse_df, aes(x = log_lambda, y = mse)) +
+  geom_point(color = "#3c5abe") +
+  geom_point(aes(x = log(best_lambda), y = min_mse), color = "#82dc82", size = 1) +
+  labs(
+    x = "log(lambda)",
+    y = "MSE"
+  ) +
+  theme_minimal()
+```

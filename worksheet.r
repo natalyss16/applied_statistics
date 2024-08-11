@@ -1,4 +1,4 @@
-install.packages(extraDistr)
+install.packages("extraDistr")
 install.packages('ggpubr')
 install.packages('tidyverse')
 
