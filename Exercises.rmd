@@ -1223,4 +1223,26 @@ CE
 ```
 
 * model improvements
+1. time and frequency may be correlated, as with increased time since first donation the frequency also may increase, if person is donated blood regularly. let's try to add interaction term between these two variables
 
+```{r}
+donations_model_improved <- glm(donation ~ recency + frequency * time,
+  data = donations_train,
+  family = binomial)
+summary(donations_model_improved)
+
+pred_donations_improved <- predict(donations_model_improved, newx = donations_test)
+pred_donations_improved__class <- ifelse(pred_donations_improved < treshhold, 0, 1)
+CE <- mean(abs(real_donations_class - pred_donations_improved__class))
+CE
+```
+
+### Exercise 7
+
+```{r}
+student <- read.csv('student-mat.csv')
+head(student)
+summary(student)
+```
+
+a. G1, G2, G3 distributions
