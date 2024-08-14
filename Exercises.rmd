@@ -16,6 +16,8 @@ output: pdf_document
 #install.packages('ggpubr')
 #install.packages('tidyverse')
 #install.packages('glmnet')
+#install.packages('astsa')
+#install.packages('surveillance')
 
 library(tidyverse)
 library(ggplot2)
@@ -24,6 +26,8 @@ library(ggpubr)
 library(extraDistr)
 library(tinytex)
 library(glmnet)
+library(astsa)
+library(surveillance)
 ```
 
 ### Exercise 1
@@ -1246,3 +1250,195 @@ summary(student)
 ```
 
 a. G1, G2, G3 distributions
+
+* histograms
+
+```{r}
+G1_hist <- ggplot(student, aes(x = G1)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 10) +
+  theme_minimal()
+
+G2_hist <- ggplot(student, aes(x = G2)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 10) +
+  theme_minimal()
+
+G3_hist <- ggplot(student, aes(x = G3)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 10) +
+  theme_minimal()
+
+ggarrange(G1_hist, G2_hist, G3_hist, ncol = 3, nrow = 1)
+```
+
+The histograms do not seem to follow the normal distribution
+We can check that using QQ-plots as well
+
+* QQ plots
+
+```{r}
+G1_qq <- ggplot(student, aes(sample = G1)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+
+G2_qq <- ggplot(student, aes(sample = G2)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+
+G3_qq <- ggplot(student, aes(sample = G3)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+
+ggarrange(G1_qq, G2_qq, G3_qq, ncol = 1, nrow = 3)
+```
+
+G1, G2, G3 do not seem like they follow the normal distribution
+
+* Poisson ?
+
+To check whether they may follow the Poisson distribution we can check if there is a significant difference between mean and variance:
+
+```{r}
+var(student$G1) / mean(student$G1)
+var(student$G2) / mean(student$G2)
+var(student$G3) / mean(student$G3)
+```
+
+Looks like G1 and G2 may follow Poisson distribution (they're close to be equal) while G3 probably is not
+However, we cannot state that there is overdispersion in the distribution of these variables, as variance is not highly bigger than the mean
+I also do not think that there are any anomalies in their distributions, as looking at the histograms they seem pretty close to Poisson
+
+b. glm
+
+Fitting the model without G2 and G3 - these grades cannot influence the first period grade, as they haven't happened yet
+
+```{r}
+model_1 <- glm(G1 ~. -G2 -G3, data = student)
+summary(model_1)
+```
+
+At the significance level 0.05 the following variables are significant for G1 - first period grade:
+* sexM - being a male increases the chances of getting higher grade (that's sad)
+* studytime - with more time put into studies, the grade gets higher
+* failures - the number of failures has negative impact on the grade
+* schoolsup - having extra educational support has strong negative influence
+* famsup - having extra family support has negative influence
+side note: I guess here we see the opposite causaition: usually children who are not very successful in the education require additional support
+* goout - with increasing frequency of going out the grade tends to decrease
+
+The residual deviance is smaller than null deviance which suggests that the model is better than the default one
+However, the deviance number is still large which means we do not explain the data with our model perfectly well, and it could be pred_donations_improved
+
+```{r}
+# Pearson residuals
+residuals_pear <- residuals(model_1, type = "pearson")
+hist(residuals_pear)
+qqnorm(residuals_pear)
+qqline(residuals_pear)
+```
+
+```{r}
+# Anscombe residuals
+
+phi <- deviance(model_1) / df.residual(model_1) # estimated over-dispersion
+
+residuals_ansc <- anscombe.residuals(model_1, phi)
+hist(residuals_ansc)
+qqnorm(residuals_ansc)
+qqline(residuals_ansc)
+```
+
+These residuals do not seem to follow the normal distribution, so we probably didn't capture all the influencing variables
+
+c. less covariates
+
+```{r}
+model_2 <- glm(G1 ~ sex + Fedu + studytime + failures + schoolsup + famsup + goout, data = student)
+summary(model_2)
+```
+
+All the covariates are significant on alpha = 0.05
+
+* sexM - being a male increases the chances of getting higher grade
+* Fedu - with higher level of education of father the grades also increase
+* studytime - with more time put into studies, the grade gets higher
+* failures - the number of failures has negative impact on the grade
+* schoolsup - having extra educational support has strong negative influence
+* famsup - having extra family support has negative influence
+side note here too: I guess here we see the opposite causaition: usually children who are not very successful in the education require additional support
+* goout - with increasing frequency of going out the grade tends to decrease
+
+Again, the residual deviance is smaller than null, so model performs better than null one, but not really much better
+
+* deviance test: model_1 and model_2
+
+```{r}
+anova(model_1, model_2)
+```
+
+The significant p-value (0.02364) suggests that Model 1 fits the data better than Model 2. 
+Which means that the variables we excluded still explain a lot of variance and we should not omit them
+
+* goout -> Walc
+
+```{r}
+model_3 <- glm(G1 ~ sex + Fedu + studytime + failures + schoolsup + famsup + Walc, data = student)
+summary(model_3)
+anova(model_2, model_3)
+```
+
+Weekend alcohol consumption is also a significant predictor, however, it doesn't imrpove the fit compared to the model 2 - it even makes it worse (higher residual deviance)
+
+### Exercise 10
+
+a. AR(2) fit
+
+```{r}
+data(cmort)
+cmort <- cmort
+cmort
+```
+
+Let's look at the data:
+
+```{r}
+n <- length(cmort)
+invisible(acf2(cmort, max.lag = n - 1))
+invisible(acf2(cmort, max.lag = 100))
+```
+
+There is definitely some time trend in the data
+Drop after second lag in PACF indicates that AR(2) may be a good model to fit
+
+```{r}
+cmort_lags <- data.frame(
+  x = cmort[3:n],
+  x_1 = cmort[2:(n-1)],
+  x_2 = cmort[1:(n-2)]
+)
+
+# Fit the AR(2) model using linear regression
+cmort_AR2 <- lm(x ~ x_1 + x_2, data = cmort_lags)
+
+# Output the model summary
+summary(cmort_AR2)
+```
+
+```{r}
+coefs_AR2 <- coef(cmort_AR2)
+
+```
+
