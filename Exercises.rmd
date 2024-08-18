@@ -471,10 +471,6 @@ ggplot() +
   geom_vline(xintercept = bad_bands$upper, color = "#b37d69")
 ```
 
-d. EDF + uniform confidence bands
-
-e. EDFs for good and bad wines
-
 ### Exercise 3
 
 a. MLE for mu
@@ -811,7 +807,7 @@ This, actually, doesn't make sense, by looking at the graph below, seems that th
 * grade: each additional grade increases the price by ~ 22.18%
 * yr_built: each additional year when house was built decreases the price by ~ 0.55%
 
-```{r}
+```{r, return=FALSE, warning=FALSE}
 bedrooms <- ggplot(house, aes(x = bedrooms, y = log_price)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "lm", se = FALSE, color = "blue")
@@ -905,9 +901,9 @@ mse_log_price_sq
 
 The second model gives a better prediction, as MSE there is smaller
 Let's improve the model by:
-1. removing outlier with 33 bedrooms in training dataset
-2. adding interaction bedrooms*bathrooms as they are correlated (bathrooms means bathroom per bedroom)
-3. adding interaction condition*grade as they also seem correlated
+* removing outlier with 33 bedrooms in training dataset
+* adding interaction bedrooms*bathrooms as they are correlated (bathrooms means bathroom per bedroom)
+* adding interaction condition*grade as they also seem correlated
 
 ```{r}
 house_clean_train <- house_train %>%
@@ -1079,16 +1075,20 @@ as.data.frame(as.matrix(coef(ridge_hitters)))
 ```
 
 The most important variables are ones with bigger absolute values
-1. Division - players in the division W have much lower salaries than ones in division e
-2. League - being in league A is associated with lower salaries, while league N players in general have higher
-3. NewLeague - players in the New League N tend to have higher salaries
-4. Years - with the increase in the num of years in the major leagues the salary also increases
+
+* Division - players in the division W have much lower salaries than ones in division E
+  
+* League - being in league A is associated with lower salaries, while league N players in general have higher
+  
+* NewLeague - players in the New League N tend to have higher salaries
+  
+* Years - with the increase in the num of years in the major leagues the salary also increases
 
 There are no coefficients that equal zero, as ridge regression doesn't make coefficients equal to zero.
 
 g. lasso regression
 
-```{r}
+```{r, warning=FALSE}
 optimal_lambda_lasso <- function(lambda) {
   lasso_hitters_train <- glmnet(X_train, y_train, alpha = 1, lambda = lambda)
   pred_hitters <- predict(lasso_hitters_train, newx = X_test)
@@ -1221,21 +1221,6 @@ CE <- mean(abs(real_donations_class - pred_donations_class))
 CE
 ```
 
-* model improvements
-1. time and frequency may be correlated, as with increased time since first donation the frequency also may increase, if person is donated blood regularly. let's try to add interaction term between these two variables
-
-```{r}
-donations_model_improved <- glm(donation ~ recency + frequency * time,
-  data = donations_train,
-  family = binomial)
-summary(donations_model_improved)
-
-pred_donations_improved <- predict(donations_model_improved, newx = donations_test)
-pred_donations_improved__class <- ifelse(pred_donations_improved < treshhold, 0, 1)
-CE <- mean(abs(real_donations_class - pred_donations_improved__class))
-CE
-```
-
 ### Exercise 7
 
 ```{r}
@@ -1326,12 +1311,19 @@ summary(model_1)
 ```
 
 At the significance level 0.05 the following variables are significant for G1 - first period grade:
+
 * sexM - being a male increases the chances of getting higher grade (that's sad)
+  
 * studytime - with more time put into studies, the grade gets higher
+  
 * failures - the number of failures has negative impact on the grade
+  
 * schoolsup - having extra educational support has strong negative influence
+  
 * famsup - having extra family support has negative influence
+  
 side note: I guess here we see the opposite causaition: usually children who are not very successful in the education require additional support
+
 * goout - with increasing frequency of going out the grade tends to decrease
 
 The residual deviance is smaller than null deviance which suggests that the model is better than the default one
@@ -1397,26 +1389,6 @@ anova(model_2, model_3)
 
 Weekend alcohol consumption is also a significant predictor, however, it doesn't imrpove the fit compared to the model 2 - it even makes it worse (higher residual deviance)
 
-### Exercise 8
-
-```{r}
-data(landsat)
-land <- landsat
-head(land)
-summary(land)
-```
-
-a. linear model
-
-* corn
-
-```{r}
-corn_model <- lm(HACorn ~ PixelsCorn + MeanPixelsCorn + SegmentsInCounty, random = ~1 | CountyName, data = land)
-summary(corn_model)
-```
-
-
-
 ### Exercise 9
 
 ```{r}
@@ -1459,9 +1431,13 @@ scores
 ```
 
 Order of the columns:
+
 * Sepal.Length
+  
 * Sepal.Width
+  
 * Petal.Length
+  
 * Petal.Width
 
 Looking at the loadings, PC1 is mostly influenced by Petal Length and a bit less of Petal Width, while PC2 is negatively associated by Sepal Length and Width 
@@ -1517,9 +1493,9 @@ This leads us to the conclusion that having equal weights (correlation matrix) c
 d. PC plot
 
 ```{r}
-pca_data <- data.frame(pca$x[, 1:2])
-pca_data$Species <- iris$Species
-ggplot(pca_data, aes(x = PC1, y = PC2, color = Species)) +
+pca_components <- data.frame(pca$x[, 1:2])
+pca_components$Species <- iris$Species
+ggplot(pca_components, aes(x = PC1, y = PC2, color = Species)) +
   geom_point(size = 3) +
   labs(
        x = "First principal component",
@@ -1528,7 +1504,52 @@ ggplot(pca_data, aes(x = PC1, y = PC2, color = Species)) +
   theme_minimal()
 ```
 
+According to the plot, all three species are quite well separated
+I think, this two-dimensional plot represents the relative positions quite well, as first two components account for the most variance of the data.
 
+e. K-means
+
+```{r}
+set.seed(47)
+k = 3
+kmeans_iris <- kmeans(pca_components[, 1:2], centers = k)
+# take cluster
+pca_components$cluster <- as.factor(kmeans_iris$cluster)
+ggplot(pca_components, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point()
+
+table(pca_components$cluster, pca_components$Species)
+```
+
+cluster numbers:
+
+* 1 - setosa
+  
+* 2 - versicolor
+  
+* 3 - virginica
+
+Looks like the model predicts setosa and versicolor species good, but very bad predicts virginica, messing it up with setosa
+
+* classification error (reduced)
+```{r}
+species <- as.numeric(factor(iris$Species))
+CE_cut <- sum(pca_components$cluster != species) / length(species)
+CE_cut
+```
+
+* classification error (full)
+
+```{r}
+set.seed(47)
+kmeans_iris_full <- kmeans(iris_cut, centers = k)
+
+CE_full <- sum(kmeans_iris_full$cluster != species) / length(species)
+CE_full
+```
+
+The classification error is even larger while using the full dataset
+And still very big, that's probably mainly because of incorrect classification of virginica
 
 ### Exercise 10
 
@@ -1537,7 +1558,7 @@ a. AR(2) fit
 ```{r}
 data(cmort)
 cmort <- cmort
-cmort
+head(cmort)
 ```
 
 Let's look at the data:
@@ -1551,22 +1572,97 @@ invisible(acf2(cmort, max.lag = 100))
 There is definitely some time trend in the data
 Drop after second lag in PACF indicates that AR(2) may be a good model to fit
 
+a. AR model
+
 ```{r}
 cmort_lags <- data.frame(
   x = cmort[3:n],
-  x_1 = cmort[2:(n-1)],
-  x_2 = cmort[1:(n-2)]
+  x_1 = cmort[2:(n - 1)],
+  x_2 = cmort[1:(n - 2)]
+)
+cmort_ar2 <- lm(x ~ x_1 + x_2, data = cmort_lags)
+```
+
+b. forecast AR(2)
+```{r}
+n_weeks <- 4
+forecast_ar <- numeric(n_weeks)
+se_ar <- numeric(n_weeks)
+
+x_1 <- cmort_lags$x[nrow(cmort_lags)]
+x_2 <- cmort_lags$x_1[nrow(cmort_lags)]
+
+# predictions
+for (i in 1:n_weeks) {
+  forecast_ar[i] <- coef(cmort_ar2)["(Intercept)"] +
+                    coef(cmort_ar2)["x_1"] * x_1 +
+                    coef(cmort_ar2)["x_2"] * x_2
+  x_2 <- x_1
+  x_1 <- forecast_ar[i]
+
+  se_ar[i] <- sqrt(sum(residuals(cmort_ar2)^2) / (nrow(cmort_lags) - 2))
+}
+
+lower_bound_ar <- forecast_ar - 1.96 * se_ar
+upper_bound_ar <- forecast_ar + 1.96 * se_ar
+
+results_ar2 <- data.frame(
+  ar.pred = forecast_ar,
+  ar.se = se_ar,
+  lower_95_CI = lower_bound_ar,
+  upper_95_CI = upper_bound_ar
 )
 
-# Fit the AR(2) model using linear regression
-cmort_AR2 <- lm(x ~ x_1 + x_2, data = cmort_lags)
-
-# Output the model summary
-summary(cmort_AR2)
+print(results_ar2)
 ```
+
+Based on the predictions, the mortality rate in the following four weeks will be around 75 - 98.
+
+c. Yule-Walker method
 
 ```{r}
-coefs_AR2 <- coef(cmort_AR2)
-
+cmort_yw <- ar.yw(cmort, order.max = 2)
+cmort_yw$ar
+sqrt(diag(cmort_yw$asy.var.coef))
+summary(cmort_ar2)
 ```
 
+Yule-Walker method suggests similar coefficients for both lags and a bit larger standard error than AR(2) model
+This is because of the different approach: OLS assumes having independent error, while Yule-Walker accounts for autocorrelation (which is typical for time series data)
+All in all, results do not differ much, so we can rely on both
+
+```{r}
+forecast_yw <- predict(cmort_yw, n.ahead = n_weeks, se.fit = TRUE)
+
+lower_bound_yw <- forecast_yw$pred - 1.96 * forecast_yw$se
+upper_bound_yw <- forecast_yw$pred + 1.96 * forecast_yw$se
+
+results_total <- data.frame(
+  forecast_ar = forecast_ar,
+  lower_95_CI = lower_bound_ar,
+  upper_95_CI = upper_bound_ar,
+  forecast_yw = forecast_yw,
+  lower_95_CI = lower_bound_yw,
+  upper_95_CI = upper_bound_yw
+)
+
+print(results_total)
+```
+
+The confidence intervals using Yule-Walker get wider with for third and fourth weeks because the uncertainty increases
+In total, the predictions are quite similar among both models
+
+f. ARMA model
+
+For the comparison I will recalculate AR(2) model using arima function
+
+```{r}
+cmort_ar2 <- arima(cmort, order = c(2, 0, 0))
+cmort_arma22 <- arima(cmort, order = c(2, 0, 2))
+AIC(cmort_ar2)
+AIC(cmort_arma22)
+BIC(cmort_ar2)
+BIC(cmort_arma22)
+```
+
+AIC and BIC information criterions suggest that AR model performs better than ARMA, so there is no need in adding additional complexity for the model
