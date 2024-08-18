@@ -1,0 +1,10 @@
+install.packages("extraDistr")
+install.packages('ggpubr')
+install.packages('tidyverse')
+
+library(tidyverse)
+library(ggplot2)
+library(stats)
+library(ggpubr)
+library(extraDistr)
+library(tinytex)

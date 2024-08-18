@@ -1,0 +1,1668 @@
+---
+title: "Exercises"
+author: "Natali Tckvitishvili"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# Applied Statistics in R
+## Natali Tckvitishvili
+
+### Load libraries
+
+```{r, results=FALSE, message=FALSE}
+#install.packages("extraDistr")
+#install.packages('tinytex')
+#install.packages('ggpubr')
+#install.packages('tidyverse')
+#install.packages('glmnet')
+#install.packages('astsa')
+#install.packages('surveillance')
+#install.packages('JoSAE')
+
+library(tidyverse)
+library(ggplot2)
+library(stats)
+library(ggpubr)
+library(extraDistr)
+library(tinytex)
+library(glmnet)
+library(astsa)
+library(surveillance)
+library(JoSAE)
+```
+
+### Exercise 1
+
+a. load data & add new variable - good
+
+```{r, results = FALSE}
+wine <- read.csv("winequality-white.csv", sep = ";")
+wine <- mutate(wine, good = ifelse(quality > 5, 1, 0))
+
+head(wine)
+```
+
+b. residual.sugar analysis
+
+First I'd specify the analysed variable to add more flexibility to the further analysis, when we'll need to make the same calculation for another variable.
+
+```{r}
+analysed_variable <- wine$residual.sugar
+wine$analysed_variable <- analysed_variable
+```
+
+* histograms for good and bad quality wines
+
+```{r}
+good_labels <- c("0" = "bad", "1" = "good")
+
+ggplot(wine, aes(x = analysed_variable, fill = as.factor(good))) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100) +
+  scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+  facet_wrap(vars(good), labeller=labeller(good = good_labels)) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "Sugar residuals",
+    y = "Count",
+    title = "Sugar residuals by wine quality"
+  )
+```
+
+According to the graphs, both bad and good quality wines have sugar residuals near zero, however, for good wines this number is higher than for bad ones.
+Moreover, sugar residuals of good quality wines have a smoother decrease in frequency, most of them have less sugar.
+Therefore, we can assume that sugar residuals may have negative correlation with wine quality.
+
+* summary statistics
+```{r}
+summary <- wine %>%
+  group_by(good) %>%
+  summarise(
+    n = n(),
+    mean = mean(analysed_variable),
+    median = median(analysed_variable),
+    sd = sd(analysed_variable),
+    iqr = IQR(analysed_variable),
+    max = max(analysed_variable),
+    min = min(analysed_variable)
+  )
+data.frame(summary)
+```
+
+For the "bad" quality wines both mean and median of the sugar residuals are higher than for the "good" wines, which probably (I say probably here as we haven't checked the significance of this difference yet) means that bad wines on average contain more sugar than good ones. 
+They also have a higher variance and range between the values which may mean that the variety of the bad wines is bigger than of the good ones. 
+What is interesting, there is an observation of a good wine with 65.8 sugar residuals which is a huge number compared to the mean and median.
+This might be an outlier, we'll see if that's true drawing a boxplot.
+Additionally, for good wines the difference between the mean and median is quite big, so we can assume that there are more outliers that impact the mean.
+
+* boxplots
+```{r}
+ggplot(wine, aes(x = as.factor(good), y = analysed_variable, fill = as.factor(good))) +
+    geom_boxplot(alpha = .5) +
+    scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+    scale_x_discrete(labels = good_labels) +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs (
+      x = "Wine quality",
+      y = "Sugar residuals",
+      title = "Sugar residuals by wine quality"
+    )
+```
+
+As stated above, the good wine with 65.8 sugar residuals must be an outlier, accoring to the boxplots.
+There are two more outliers, and all of them impact the mean.
+Assuming that better wines on average have less sugar, these observations might be a quality estimation error / human factor or there are sugary wines which are considered good in the modern somelier society.
+
+* QQ plot to compare samples
+```{r}
+good_wine <- wine %>%
+  filter(good == 1)
+
+bad_wine <- wine %>%
+  filter(good == 0)
+
+quantiles <- seq(0, 1, 0.1)
+good_quantiles <- quantile(good_wine$analysed_variable, quantiles)
+bad_quantiles <- quantile(bad_wine$analysed_variable, quantiles)
+
+qq_wine <- data.frame(good_quantiles, bad_quantiles)
+
+ggplot(qq_wine, aes(x = good_quantiles, y = bad_quantiles)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0, color = "#de4dd9") +
+    xlim(0, max(good_quantiles, bad_quantiles)) +
+    ylim(0, max(good_quantiles, bad_quantiles)) +
+    theme_minimal() +
+    labs(title = "QQ Plot: good vs bad wines",
+         x = "Quantiles of good wines",
+         y = "Quantiles of bad wines")
+```
+
+The distribution of both samples seems to be similar and right-skewed (this can also be seen on the histograms above). We also see here the outlier.
+
+* Empirical distribution functions
+
+```{r}
+ggplot(wine, aes(x = analysed_variable, color = as.factor(good))) +
+  stat_ecdf(geom = "step") +
+  scale_color_manual(values=c("#b37d69", "#6dcc6b"), labels=good_labels, name="wine quality") +
+  theme_minimal() +
+  labs (
+    x = "Sugar residuals",
+    y = "Cumulative probability",
+    title = "Empirical distribution functions"
+  )
+```
+
+The distribution of sugar residuals in good wines is more concentrated around lower values than bad wines.
+Moreover, values are spread out (graphs are smooth).
+
+All of those graphs and summary statistics show the same: good wines in general have lower sugar residuals than bad ones.
+
+c. volatile.acidity
+
+```{r}
+analysed_variable <- wine$volatile.acidity
+wine$analysed_variable <- analysed_variable
+```
+
+* histograms for good and bad quality wines
+
+```{r}
+ggplot(wine, aes(x = analysed_variable, fill = as.factor(good))) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100) +
+  scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+  facet_wrap(vars(good), labeller=labeller(good = good_labels)) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "Volatile acidity",
+    y = "Count",
+    title = "Volatile acidity by wine quality"
+  )
+```
+
+It can be said that means of volatile acidity for both good and bad wines do not seem do be significantly different, however, for good wines it may be a little less than for the bad ones.
+Both distributions are a little right-skewed as well.
+
+* summary statistics
+```{r}
+summary <- wine %>%
+  group_by(good) %>%
+  summarise(
+    n = n(),
+    mean = mean(analysed_variable),
+    median = median(analysed_variable),
+    sd = sd(analysed_variable),
+    iqr = IQR(analysed_variable),
+    max = max(analysed_variable),
+    min = min(analysed_variable)
+  )
+data.frame(summary)
+```
+
+Similarly to sugar residual, for the "bad" quality wines both mean and median of the volatile acidity are higher than for the "good" wines, although difference is not that huge.
+
+* boxplots
+```{r}
+ggplot(wine, aes(x = as.factor(good), y = analysed_variable, fill = as.factor(good))) +
+    geom_boxplot(alpha = .5) +
+    scale_fill_manual(values=c("#b37d69", "#6dcc6b")) +
+    scale_x_discrete(labels = good_labels) +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs (
+      x = "Wine quality",
+      y = "Volatile acidity",
+      title = "Volatile acidity by wine quality"
+    )
+```
+
+Looks like we have much more outliers here than in sugar residuals.
+In general, bad wines seem to have more acids (boxplot is located higher).
+
+* QQ plot to compare samples
+```{r}
+good_quantiles <- quantile(good_wine$analysed_variable, quantiles)
+bad_quantiles <- quantile(bad_wine$analysed_variable, quantiles)
+
+qq_wine <- data.frame(good_quantiles, bad_quantiles)
+
+ggplot(qq_wine, aes(x = good_quantiles, y = bad_quantiles)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0, color = "#de4dd9") +
+    xlim(0, max(good_quantiles, bad_quantiles)) +
+    ylim(0, max(good_quantiles, bad_quantiles)) +
+    theme_minimal() +
+    labs(title = "QQ Plot: good vs bad wines",
+         x = "Quantiles of good wines",
+         y = "Quantiles of bad wines")
+```
+
+The distribution of both samples seems to be similar but with a difference in scal (variance) as dots do not fall on the y = x line, but still form the straight line.
+
+* Empirical distribution functions
+
+```{r}
+ggplot(wine, aes(x = analysed_variable, color = as.factor(good))) +
+  stat_ecdf(geom = "step") +
+  scale_color_manual(values=c("#b37d69", "#6dcc6b"), labels=good_labels, name="wine quality") +
+  theme_minimal() +
+  labs (
+    x = "Volatile acidity",
+    y = "Cumulative probability",
+    title = "Empirical distribution functions"
+  )
+```
+
+Good wines have generally lower values that bad ones; steepness demonstrates that a large number of observations is concentrated within a small range of values.
+Generally, all graphs incicate that good wines tend to have lower volatile acidity than bad wines.
+
+### Exercise 2
+
+```{r}
+analysed_variable <- wine$pH
+wine$analysed_variable <- analysed_variable
+```
+
+a. histogram
+
+mean and standard deviation for plotting normal density
+
+```{r}
+mean_pH <- mean(wine$analysed_variable)
+sd_pH <- sd(wine$analysed_variable)
+
+mean_pH
+sd_pH
+```
+
+* all wines
+
+```{r}
+ggplot(wine, aes(x = analysed_variable)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
+  stat_function(fun = function(x) # scale normal density to be seen
+    dnorm(x, mean = mean_pH, sd = sd_pH) * 70, aes(color = "#d27786"), linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "pH",
+    y = "count",
+    title = "pH and normal density"
+  )
+```
+
+* good and bad wines
+
+```{r}
+good_wine <- wine %>%
+  filter(good == 1)
+
+bad_wine <- wine %>%
+  filter(good == 0)
+
+mean_pH_good <- mean(good_wine$analysed_variable)
+sd_pH_good <- sd(good_wine$analysed_variable)
+
+mean_pH_bad <- mean(bad_wine$analysed_variable)
+sd_pH_bad <- sd(bad_wine$analysed_variable)
+
+mean_pH_good
+sd_pH_good
+mean_pH_bad
+sd_pH_bad
+```
+
+```{r}
+ggplot(good_wine, aes(x = analysed_variable)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6dcc6b") +
+  stat_function(fun = function(x) 
+    dnorm(x, mean = mean_pH_good, sd = sd_pH_good) * 40, aes(color = "#d27786"), linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "pH",
+    y = "count",
+    title = "pH for good wines"
+  )
+```
+
+```{r}
+ggplot(bad_wine, aes(x = analysed_variable)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#b37d69") +
+  stat_function(fun = function(x) 
+    dnorm(x, mean = mean_pH_bad, sd = sd_pH_bad) * 20, aes(color = "#d27786"), linetype = "dashed") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "pH",
+    y = "count",
+    title = "pH for bad wines"
+  )
+```
+
+It can be said that pH follows the normal distribution for bad wines, but for good wines and wines in total the distribution seems to be bimodal with two peaks.
+
+b. QQ plots
+
+* all wines
+
+```{r}
+qq_all <- ggplot(wine, aes(sample = pH)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+* good wines
+
+```{r}
+qq_good <- ggplot(good_wine, aes(sample = pH)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+* bad wines
+
+```{r}
+qq_bad <- ggplot(bad_wine, aes(sample = pH)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )  
+```
+
+```{r}
+ggarrange(qq_all, qq_good, qq_bad, labels = c("all", "good", "bad"), ncol = 3, nrow = 1)
+```
+b. PP plots
+
+* all wines
+
+```{r}
+pp_all <- ggplot(wine, aes(sample = pH)) +
+  stat_qq(distribution = qnorm, dparams = list(mean = mean_pH, sd = sd_pH)) +
+  stat_qq_line(distribution = qnorm, dparams = list(mean = mean_pH, sd = sd_pH)) +
+  theme_minimal() +
+  labs (
+    x = "theoretical probabilities",
+    y = "empirical probabilities"
+  )  
+```
+
+* good wines
+
+```{r}
+pp_good <- ggplot(good_wine, aes(sample = pH)) +
+  stat_qq(distribution = qnorm, dparams = list(mean = mean_pH_good, sd = sd_pH_good)) +
+  stat_qq_line(distribution = qnorm, dparams = list(mean = mean_pH_good, sd = sd_pH_good)) +
+  theme_minimal() +
+  labs (
+    x = "theoretical probabilities",
+    y = "empirical probabilities"
+  )
+```
+
+* bad wines
+
+```{r}
+pp_bad <- ggplot(bad_wine, aes(sample = pH)) +
+  stat_qq(distribution = qnorm, dparams = list(mean = mean_pH_bad, sd = sd_pH_bad)) +
+  stat_qq_line(distribution = qnorm, dparams = list(mean = mean_pH_bad, sd = sd_pH_bad)) +
+  theme_minimal() +
+  labs (
+    x = "theoretical probabilities",
+    y = "empirical probabilities"
+  )
+```
+
+```{r}
+ggarrange(pp_all, pp_good, pp_bad, labels = c("all", "good", "bad"), ncol = 3, nrow = 1)
+```
+
+Samples probably do not follow normal distribution, as tails of QQ and PP plots do not lay on the line.
+
+c. empirical distribution function + confidence intervals
+
+```{r}
+# calculate confidence bands
+
+bands <- function(data, analysed_variable, alpha) {
+  n <- length(data$analysed_variable)
+  mean <- mean(data$analysed_variable)
+  sd <- sd(data$analysed_variable)
+  z_alpha <- qnorm(1 - alpha / 2)
+  lower <- mean - z_alpha * sd / sqrt(n)
+  upper <- mean + z_alpha * sd / sqrt(n)
+  data.frame(lower, upper)
+}
+
+alpha <- 0.05
+all_bands <- bands(wine, analysed_variable, alpha)
+good_bands <- bands(good_wine, analysed_variable, alpha)
+bad_bands <- bands(bad_wine, analysed_variable, alpha)
+```
+
+```{r}
+ggplot() +
+  stat_ecdf(data = wine, aes(x = analysed_variable), color = "#6a6ad9") +
+  geom_vline(xintercept = all_bands$lower, color = "#6a6ad9") +
+  geom_vline(xintercept = all_bands$upper, color = "#6a6ad9") +
+  stat_ecdf(data = good_wine, aes(x = analysed_variable), color = "#6dcc6b") +
+  geom_vline(xintercept = good_bands$lower, color = "#6dcc6b") +
+  geom_vline(xintercept = good_bands$upper, color = "#6dcc6b") +
+  stat_ecdf(data = bad_wine, aes(x = analysed_variable), color = "#b37d69") +
+  geom_vline(xintercept = bad_bands$lower, color = "#b37d69") +
+  geom_vline(xintercept = bad_bands$upper, color = "#b37d69")
+```
+
+### Exercise 3
+
+a. MLE for mu
+
+$$
+f(x; \mu, \sigma) = \frac{1}{2\sigma} \exp \left( -\frac{|x - \mu|}{\sigma} \right)
+$$
+
+The log-likelihood function:
+
+$$
+\ell(\mu, \sigma) = \sum_{i=1}^n \log \left( \frac{1}{2\sigma} \exp \left( -\frac{|X_i - \mu|}{\sigma} \right) \right) =
+$$
+
+$$
+= \ell(\mu, \sigma) = -n \log(2\sigma) - \frac{1}{\sigma} \sum_{i=1}^n |X_i - \mu|
+$$
+
+To find MLE for \(\mu\), we need to maximize \(\ell(\mu, \sigma)\) with respect to \(\mu\)
+This is equivalent to minimizing the sum of absolute deviations:
+
+$$
+\text{minimize} \sum_{i=1}^n |X_i - \mu|
+$$
+
+According to statistics, the sum of absolute deviations is minimal at the median
+
+Having n even gives us two equally good estimators, but when number of observations is odd, the estimator will be unique.
+
+b. quantile
+
+* for 20 observations
+
+```{r}
+set.seed(999)
+
+n <- 20
+mu <- 1
+sigma <- 1
+sample_20 <- rlaplace(n, mu, sigma)
+
+real_median_20 <- median(sample_20)
+
+mle_quantile_20 <- c()
+diff_quantile_20 <- c()
+
+for(type in 1:9) {
+  mle_quantile_20[type] <- quantile(sample_20, 0.5, type = type)
+  diff_quantile_20[type] <- mle_quantile_20[type] - real_median_20
+}
+
+diff_quantile_20
+```
+
+So, types 2, 5, 6, 7, 8, 9 of function quantile predict better than 1, 3 and 4 types
+Here, the choice of quantile type significantly affects the result because this sample may not be representative due to small number of observations
+
+* for 1000 observations
+
+```{r}
+set.seed(999)
+
+n <- 1000
+mu <- 1
+sigma <- 1
+sample_1000 <- rlaplace(n, mu, sigma)
+
+real_median_1000 <- median(sample_1000)
+
+mle_quantile_1000 <- c()
+diff_quantile_1000 <- c()
+
+for(type in 1:9) {
+  mle_quantile_1000[type] <- quantile(sample_1000, 0.5, type = type)
+  diff_quantile_1000[type] <- mle_quantile_1000[type] - real_median_1000
+}
+
+diff_quantile_1000
+```
+
+For 1000 observations the best predictors are 2, 5, 6-9 types of fn quantile, similar as for 20 observations.
+It is noticable that the difference for other types of quantile fn is much smaller than for 20 observations, which means that increasing the number of observations estimator gets more confident and shows better results
+Looks like we just proved the law of large numbers :)
+
+c. MLE function
+
+```{r}
+mle_optimise <- function(data) {
+  log_lik_laplace <- function(mu, data) {
+    return(sum(abs(data - mu))) # from calculations in a
+  }
+  result <- optimise(
+    log_lik_laplace,
+    interval = c(min(data), max(data)),
+    data = data)
+  return(result$minimum)
+}
+
+mle_optimise_20 <- mle_optimise(sample_20)
+mle_quantile_20 <- quantile(sample_20, 0.5, type = 2) # taking second as one of the best types
+
+mle_optimise_1000 <- mle_optimise(sample_1000)
+mle_quantile_1000 <- quantile(sample_1000, 0.5, type = 2)
+
+results <- data.frame(
+  optimise = c(mle_optimise_20, mle_optimise_1000),
+  quantile = c(mle_quantile_20, mle_quantile_1000),
+  real = c(real_median_20, real_median_1000),
+  row.names = c("20", "1000")
+)
+print(results)
+```
+
+Function 'optimise' uses a combination of golden section search and successive parabolic interpolation to find the minimum or maximum in the selected interval.
+Golden section search uses golden ratio to narrow the range of values that potentially can be the extremums, while successive parabolic interpolation fits a quadratic function through three points, then the vertex is used for new fitting and so on.
+
+The Newton-Raphson method is not suitable for Laplace function, as it requires continuously differentable function, but Laplace one is not smooth at the point  $\mu = X_i$
+
+Talking about the results, quantile estimates better, because, as I understood, it simply takes the median, knowing that it's a best estimator
+However, optimise function also gives a pretty close estimate especially when increasing the sample size.
+
+d. MLE distribution
+
+* sample size = 20
+
+```{r}
+set.seed(1000)
+
+n = 20 # sample size
+m = 5000 # num of MLEs
+mu <- 1
+sigma <- 1
+
+mle_generator <- c()
+
+for(i in 1:m) {
+  mle_sample <- rlaplace(n, mu, sigma)
+  mle_generator[i] <- mle_optimise(mle_sample)
+}
+
+mle_df_20 <- data.frame(mle_generator)
+head(mle_df_20)
+
+ggplot(mle_df_20, aes(x = mle_generator)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6dcc6b") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "MLEs",
+    y = "count",
+    title = "MLEs for sample size = 20"
+  )
+
+ggplot(mle_df_20, aes(sample = mle_generator)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+* sample size = 1000
+
+```{r}
+set.seed(1000)
+
+n = 1000 # sample size
+m = 5000 # num of MLEs
+mu <- 1
+sigma <- 1
+
+mle_generator <- c()
+
+for(i in 1:m) {
+  mle_sample <- rlaplace(n, mu, sigma)
+  mle_generator[i] <- mle_optimise(mle_sample)
+}
+
+mle_df_1000 <- data.frame(mle_generator)
+head(mle_df_1000)
+
+ggplot(mle_df_1000, aes(x = mle_generator)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6ba4cc") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs (
+    x = "MLEs",
+    y = "count",
+    title = "MLEs for sample size = 20"
+  )
+
+ggplot(mle_df_1000, aes(sample = mle_generator)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+```
+
+For samples of size 20 estimators visually followed the normal distribution, but QQ plot showed that it is skewed a little
+But, increasing the sample size to 1000 produced perfect normal distribution, giving us the representation of the central limit theorem.
+
+* variances
+
+```{r}
+var(mle_df_20)
+var(mle_df_1000)
+```
+
+Increasing the sample size also highly decreases the variance, therefore, increases our confidence in predicting the true parameter.
+
+### Exercise 4
+
+```{r}
+house <- read.csv("kc_house_data.csv") %>%
+  select(price, bedrooms, bathrooms,
+  sqft_living, floors, view,
+  condition, grade, yr_built)
+
+head(house)
+summary(house)
+```
+
+a. linear model for price
+
+```{r}
+model_price <- lm(price ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built,
+  data = house)
+
+summary(model_price)
+```
+
+All variables are significant, $R^2$ equals to 0.6359 which means that ~ 64% of variance in the price is explained by those variables
+
+* residual analysis
+
+```{r}
+# residuals vs fitted
+res_fit <- plot(model_price, which=1, col=c("blue"))
+
+# q-q plot
+qq <- plot(model_price, which=2, col=c("red"))
+
+# scale-location
+scale <- plot(model_price, which=3, col=c("pink"))
+```
+
+```{r}
+ggarrange(res_fit, qq, scale, ncol = 3, nrow = 1)
+```
+
+Residuals are not normally distributed and their variance is not the same, which means that our model violates normality and homoskedasticity of errors assumptions.
+
+b. price vs log(price)
+
+* histograms
+
+```{r}
+price_hist <- ggplot(house, aes(x = price)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+log_price <- log(house$price)
+
+log_price_hist <- ggplot(house, aes(x = log_price)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 100, fill="#6a6ad9") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+```{r}
+ggarrange(price_hist, log_price_hist, ncol = 3, nrow = 1)
+```
+
+* QQ plots
+
+```{r}
+qq_price <- ggplot(house, aes(sample = price)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal()
+
+qq_log_price <- ggplot(house, aes(sample = log_price)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal()
+```
+
+```{r}
+ggarrange(qq_price, qq_log_price, labels = c("price", "log_price"), ncol = 2, nrow = 1)
+```
+
+Log(price) looks closer to the normal distribution that price.
+
+* model fit
+
+```{r}
+model_log_price <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built,
+  data = house)
+
+summary(model_log_price)
+
+# residuals vs fitted
+plot(model_log_price, which=1, col=c("blue"))
+
+# q-q plot
+plot(model_log_price, which=2, col=c("red"))
+
+# scale-location
+plot(model_log_price, which=3, col=c("pink"))
+```
+
+After changing price to log(price), all variables are still significant, R^2 is also around 64%, which means that predictive quality of the model didn't decrease
+Additionally, residuals look much better - they are normally distributed and variance seems constant for all values
+By looking at the covariates we can see the the percentage effect of each, which is much more convenient for further analysis than looking at absolute change.
+
+c. effect of covariates
+
+* intercept: expected value of log(price) is ~ 21.51 when all other parameters are zero
+* bedrooms: each additional bedroom decreases the price by ~ 2.34%
+This, actually, doesn't make sense, by looking at the graph below, seems that the one outlier changes the sign of the coefficient, model fit, however, it should be positive.
+* bathrooms: each additional bathroom increases the price by ~ 8.5%
+* sqft_living: each additional square foot of living area increases the price by ~ 0.0166%
+* floors: each additional floor in the house increases the price by ~ 8.57%
+* view: each additional view increases the price by ~ 6.74%
+* condition: each additional unit of condition rating increases the price by ~ 4.23%
+* grade: each additional grade increases the price by ~ 22.18%
+* yr_built: each additional year when house was built decreases the price by ~ 0.55%
+
+```{r, return=FALSE, warning=FALSE}
+bedrooms <- ggplot(house, aes(x = bedrooms, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+
+bathrooms <- ggplot(house, aes(x = bathrooms, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+
+sqft <- ggplot(house, aes(x = sqft_living, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+
+floors <- ggplot(house, aes(x = floors, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+
+views <- ggplot(house, aes(x = view, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+
+condition <- ggplot(house, aes(x = condition, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+
+grade <- ggplot(house, aes(x = grade, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+
+yr_built <- ggplot(house, aes(x = yr_built, y = log_price)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+```
+
+```{r}
+ggarrange(bedrooms, bathrooms, sqft, floors, views, condition, grade, yr_built,
+  ncol = 2, nrow = 4)
+```
+
+* adding squares
+  
+```{r}
+model_log_price_sq <- lm(log(price) ~ bedrooms + bathrooms + sqft_living  +
+  floors + view + condition + grade + yr_built + I(sqft_living^2) + I(yr_built^2),
+  data = house)
+
+summary(model_log_price_sq)
+```
+
+Adding squares (which are significant predictors) slightly improves the model fit (0.6492 R^2 compared to 0.6426)
+
+d. prediction
+
+```{r}
+set.seed(1122)
+sample_size <- 10806
+train_indices <- sample(1:nrow(house), sample_size)
+house_train <- house[train_indices, ]
+house_test <- house[-train_indices, ]
+summary(house_train)
+summary(house_test)
+```
+
+* models b and c on training dataset
+```{r}
+# model b
+model_log_price <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built,
+  data = house_train)
+
+# model c
+model_log_price_sq <- lm(log(price) ~ bedrooms + bathrooms + sqft_living  +
+  floors + view + condition + grade + yr_built + I(sqft_living^2) + I(yr_built^2),
+  data = house_train)
+```
+
+* predictions on test dataset
+```{r}
+# predictions
+pred_log_price <- predict(model_log_price, newdata = house_test)
+pred_log_price_sq <- predict(model_log_price_sq, newdata = house_test)
+```
+
+* MSE for both models
+
+```{r}
+mse_log_price <- mean((log(house_test$price) - pred_log_price)^2)
+mse_log_price_sq <- mean((log(house_test$price) - pred_log_price_sq)^2)
+mse_log_price
+mse_log_price_sq
+```
+
+The second model gives a better prediction, as MSE there is smaller
+Let's improve the model by:
+* removing outlier with 33 bedrooms in training dataset
+* adding interaction bedrooms*bathrooms as they are correlated (bathrooms means bathroom per bedroom)
+* adding interaction condition*grade as they also seem correlated
+
+```{r}
+house_clean_train <- house_train %>%
+  filter(bedrooms < 33)
+```
+
+```{r}
+model_log_sqft <- lm(log(price) ~ bedrooms + bathrooms + sqft_living +
+  floors + view + condition + grade + yr_built +
+  I(sqft_living^2) + I(yr_built^2) +
+  bedrooms*bathrooms + condition*grade,
+  data = house_clean_train)
+
+pred_log_sqft <- predict(model_log_sqft, newdata = house_test)
+mean((log(house_test$price) - pred_log_sqft)^2) # new
+mse_log_price_sq # old
+```
+
+MSE in this case is a bit smaller which means that the new model predicts better, however, it still can be a random effect
+
+### Exercise 5
+
+a. loading data
+
+```{r}
+hitters <- read.csv("Hitters.csv") %>%
+  na.omit()
+
+head(hitters)
+summary(hitters)
+```
+
+b. condition number
+
+```{r}
+y <- hitters$Salary
+X <- hitters %>%
+  select(-Salary)
+
+# create matrix and replace categorical variables with columns 1 or 0
+X <- model.matrix(~ . -1, data = X) # -1 for removing intercept
+head(X)
+```
+
+```{r}
+XtX <- t(X) %*% X
+
+eigenvalues <- eigen(XtX)$values
+
+condition_number <- max(eigenvalues) / min(eigenvalues)
+condition_number
+```
+
+The condition number is very high, which shows that there is a high multicollinearity among some variables
+
+* standardization
+
+```{r}
+X_stand <- scale(X)
+
+XtX_stand <- t(X_stand) %*% X_stand
+
+eigenvalues_stand <- eigen(XtX_stand)$values
+
+condition_number_stand <- max(eigenvalues_stand) / min(eigenvalues_stand)
+condition_number_stand
+```
+
+Standardization didn't help, we even onbtained much higher number because there is a very small eigenvalue 2.131628e-14
+
+c. models
+
+* standard linear model
+
+```{r}
+lm_hitters <- lm(y ~ X)
+summary(lm_hitters)
+```
+
+* ridge regression
+
+```{r}
+lambda <- 70
+ridge_hitters <- glmnet(X, y, alpha = 0, lambda = lambda)
+as.data.frame(as.matrix(coef(ridge_hitters)))
+```
+
+* coefficients
+
+```{r}
+lm_coefs <- as.vector(round(coef(lm_hitters), 4))
+ridge_coefs <- as.vector(round(coef(ridge_hitters), 4))
+variables <- c("Intercept", colnames(X))
+
+coefs <- data.frame(
+  variable = variables,
+  lm_coefs = lm_coefs,
+  ridge_coefs = ridge_coefs,
+  diff = lm_coefs - ridge_coefs
+)
+
+coefs
+```
+
+I would say that ridge coefficients tend to be closer to zero and in general smaller, than standard linear model ones.
+
+d. data split
+
+```{r}
+set.seed(1122)
+
+# we'll take 80% train and 20% test
+train_indices <- sample(1:nrow(hitters), size = 0.8 * nrow(hitters))
+hitters_train <- hitters[train_indices, ]
+hitters_test <- hitters[-train_indices, ]
+
+# design matrices
+X_train <- model.matrix(Salary ~ ., data = hitters_train)
+y_train <- hitters_train$Salary
+
+X_test <- model.matrix(Salary ~ ., data = hitters_test)
+y_test <- hitters_test$Salary
+```
+
+e. best lambda
+
+```{r}
+optimal_lambda <- function(lambda) {
+  ridge_hitters_train <- glmnet(X_train, y_train, alpha = 0, lambda = lambda)
+  pred_hitters <- predict(ridge_hitters_train, newx = X_test)
+  mse <- colMeans((pred_hitters - y_test)^2)
+  return(mse)
+}
+```
+
+```{r, warning=FALSE}
+potential_lambdas <- 10^seq(10, -2, length = 100)
+mse_ridge <- sapply(potential_lambdas, optimal_lambda)
+
+mse_ridge_df <- data.frame(
+  log_lambda = log(potential_lambdas),
+  mse = mse_ridge
+)
+
+# to display the needed point on the graph
+best_lambda_ridge <- potential_lambdas[which.min(mse_ridge)]
+min_mse_ridge <- min(mse_ridge)
+
+ggplot(mse_ridge_df, aes(x = log_lambda, y = mse)) +
+  geom_point(color = "#818db2") +
+  geom_point(aes(x = log(best_lambda_ridge), y = min_mse_ridge), color = "#242824", size = 1) +
+  labs(
+    x = "log(lambda)",
+    y = "MSE"
+  ) +
+  annotate("text", x = log(best_lambda_ridge) + 7, y = min_mse_ridge,
+           label = paste("min MSE = ", round(min_mse_ridge, 2),
+                         "\nlog(lambda) = ", round(log(best_lambda_ridge), 2)),
+           vjust = -0.5, color = "#242824") +
+  theme_minimal()
+```
+
+f. fitting with optimal lambda
+
+```{r}
+lambda <- best_lambda_ridge
+ridge_hitters <- glmnet(X, y, alpha = 0, lambda = lambda)
+as.data.frame(as.matrix(coef(ridge_hitters)))
+```
+
+The most important variables are ones with bigger absolute values
+
+* Division - players in the division W have much lower salaries than ones in division E
+  
+* League - being in league A is associated with lower salaries, while league N players in general have higher
+  
+* NewLeague - players in the New League N tend to have higher salaries
+  
+* Years - with the increase in the num of years in the major leagues the salary also increases
+
+There are no coefficients that equal zero, as ridge regression doesn't make coefficients equal to zero.
+
+g. lasso regression
+
+```{r, warning=FALSE}
+optimal_lambda_lasso <- function(lambda) {
+  lasso_hitters_train <- glmnet(X_train, y_train, alpha = 1, lambda = lambda)
+  pred_hitters <- predict(lasso_hitters_train, newx = X_test)
+  mse <- colMeans((pred_hitters - y_test)^2)
+  return(mse)
+}
+
+mse_lasso <- sapply(potential_lambdas, optimal_lambda_lasso)
+
+mse_lasso_df <- data.frame(
+  log_lambda = log(potential_lambdas),
+  mse = mse_lasso
+)
+
+best_lambda_lasso <- potential_lambdas[which.min(mse_lasso)]
+min_mse_lasso <- min(mse_lasso)
+
+ggplot(mse_lasso_df, aes(x = log_lambda, y = mse)) +
+  geom_point(color = "#818db2") +
+  geom_point(aes(x = log(best_lambda_lasso), y = min_mse_lasso), color = "#242824", size = 1) +
+  labs(
+    x = "log(lambda)",
+    y = "MSE"
+  ) +
+  annotate("text", x = log(best_lambda_lasso) + 7, y = min_mse_lasso,
+           label = paste("min MSE = ", round(min_mse_lasso, 2),
+                         "\nlog(lambda) = ", round(log(best_lambda_lasso), 2)),
+           vjust = -0.5, color = "#242824") +
+  theme_minimal()
+
+lambda <- best_lambda_lasso
+lasso_hitters <- glmnet(X, y, alpha = 1, lambda = lambda)
+as.data.frame(as.matrix(coef(lasso_hitters)))
+```
+
+The results are very different compared to the ridge regression. I suppose, this happened because lasso regression sets some coefficients to zero to ensure that no unsignificant variables are included in the model.
+However, the important variables still differ between these two models :( 
+Maybe the most important conclusion we can get from this task is that we should be careful while using the regularization and choose the type correctly depending on the purpose of our research - prediction or feature selection.
+
+### Exercise 6
+
+a. GLM for donation with frequency and amount
+
+```{r}
+donations <- read.csv('transfusion.data')
+names(donations) <- c('recency', 'frequency', 'amount', 'time', 'donation')
+head(donations)
+summary(donations)
+```
+
+We will use the binomial family in the model, as we want to predict the binary outcome
+
+```{r}
+# frequency GLM model
+freq_model <- glm(donation ~ frequency, data = donations, family = binomial)
+summary(freq_model)
+
+# amount GLM model
+amount_model <- glm(donation ~ amount, data = donations, family = binomial)
+summary(amount_model)
+
+# comparing using AIC
+AIC(freq_model, amount_model)
+
+ggplot(donations, aes(x = amount, y = frequency)) +
+  geom_point() +
+  labs(
+    x = "amount",
+    y = "frequency"
+    )
+```
+
+Frequency and amount variables are highly correlated, which is logical as the amount of blood taken is fixed and its sum depends only on the frequency on donation
+We don't need both variables in our model, as multicollinearity decreases its accuracy
+
+b. different link functions
+
+```{r}
+recency_logit <- glm(donation ~ recency, data = donations, family = binomial(link = "logit"))
+summary(recency_logit)
+
+recency_probit <- glm(donation ~ recency, data = donations, family = binomial(link = "probit"))
+summary(recency_probit)
+
+recency_cauchit <- glm(donation ~ recency, data = donations, family = binomial(link = "cauchit"))
+summary(recency_probit)
+
+recency_log <- glm(donation ~ recency, data = donations, family = binomial(link = "log"))
+summary(recency_probit)
+
+recency_cloglog <- glm(donation ~ recency, data = donations, family = binomial(link = "cloglog"))
+summary(recency_cloglog)
+
+AIC(recency_logit, recency_probit, recency_log, recency_cauchit, recency_cloglog)
+```
+
+While comparing using AIC, the lowest result is obtained by complementary log-log link, however, the results are not really different from each other.
+
+c. best prediction
+
+* train and test data
+```{r}
+set.seed(1122)
+sample_size <- 374
+train_indices <- sample(1:nrow(donations), sample_size)
+donations_train <- donations[train_indices, ]
+donations_test <- donations[-train_indices, ]
+```
+
+* model fit
+
+We will not include amount there, as it is highly correlated with frequency
+
+```{r}
+donations_model <- glm(donation ~ recency + frequency + time,
+  data = donations_train,
+  family = binomial)
+summary(donations_model)
+
+pred_donations <- predict(donations_model, newx = donations_test)
+```
+
+* classification
+
+```{r}
+treshhold <- 0.5
+pred_donations_class <- ifelse(pred_donations < treshhold, 0, 1)
+real_donations_class <- donations_test$donation
+CE <- mean(abs(real_donations_class - pred_donations_class))
+CE
+```
+
+### Exercise 7
+
+```{r}
+student <- read.csv('student-mat.csv')
+head(student)
+summary(student)
+```
+
+a. G1, G2, G3 distributions
+
+* histograms
+
+```{r}
+G1_hist <- ggplot(student, aes(x = G1)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 10) +
+  theme_minimal()
+
+G2_hist <- ggplot(student, aes(x = G2)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 10) +
+  theme_minimal()
+
+G3_hist <- ggplot(student, aes(x = G3)) +
+  geom_histogram(position = "identity", alpha = .5, bins = 10) +
+  theme_minimal()
+
+ggarrange(G1_hist, G2_hist, G3_hist, ncol = 3, nrow = 1)
+```
+
+The histograms do not seem to follow the normal distribution
+We can check that using QQ-plots as well
+
+* QQ plots
+
+```{r}
+G1_qq <- ggplot(student, aes(sample = G1)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+
+G2_qq <- ggplot(student, aes(sample = G2)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+
+G3_qq <- ggplot(student, aes(sample = G3)) +
+  stat_qq() +
+  stat_qq_line() +
+  theme_minimal() +
+  labs (
+    x = "theoretical quantiles",
+    y = "empirical quantiles"
+  )
+
+ggarrange(G1_qq, G2_qq, G3_qq, ncol = 1, nrow = 3)
+```
+
+G1, G2, G3 do not seem like they follow the normal distribution
+
+* Poisson ?
+
+To check whether they may follow the Poisson distribution we can check if there is a significant difference between mean and variance:
+
+```{r}
+var(student$G1) / mean(student$G1)
+var(student$G2) / mean(student$G2)
+var(student$G3) / mean(student$G3)
+```
+
+Looks like G1 and G2 may follow Poisson distribution (they're close to be equal) while G3 probably is not
+However, we cannot state that there is overdispersion in the distribution of these variables, as variance is not highly bigger than the mean
+I also do not think that there are any anomalies in their distributions, as looking at the histograms they seem pretty close to Poisson
+
+b. glm
+
+Fitting the model without G2 and G3 - these grades cannot influence the first period grade, as they haven't happened yet
+
+```{r}
+model_1 <- glm(G1 ~. -G2 -G3, data = student)
+summary(model_1)
+```
+
+At the significance level 0.05 the following variables are significant for G1 - first period grade:
+
+* sexM - being a male increases the chances of getting higher grade (that's sad)
+  
+* studytime - with more time put into studies, the grade gets higher
+  
+* failures - the number of failures has negative impact on the grade
+  
+* schoolsup - having extra educational support has strong negative influence
+  
+* famsup - having extra family support has negative influence
+  
+side note: I guess here we see the opposite causaition: usually children who are not very successful in the education require additional support
+
+* goout - with increasing frequency of going out the grade tends to decrease
+
+The residual deviance is smaller than null deviance which suggests that the model is better than the default one
+However, the deviance number is still large which means we do not explain the data with our model perfectly well, and it could be pred_donations_improved
+
+```{r}
+# Pearson residuals
+residuals_pear <- residuals(model_1, type = "pearson")
+hist(residuals_pear)
+qqnorm(residuals_pear)
+qqline(residuals_pear)
+```
+
+```{r}
+# Anscombe residuals
+
+phi <- deviance(model_1) / df.residual(model_1) # estimated over-dispersion
+
+residuals_ansc <- anscombe.residuals(model_1, phi)
+hist(residuals_ansc)
+qqnorm(residuals_ansc)
+qqline(residuals_ansc)
+```
+
+These residuals do not seem to follow the normal distribution, so we probably didn't capture all the influencing variables
+
+c. less covariates
+
+```{r}
+model_2 <- glm(G1 ~ sex + Fedu + studytime + failures + schoolsup + famsup + goout, data = student)
+summary(model_2)
+```
+
+All the covariates are significant on alpha = 0.05
+
+* sexM - being a male increases the chances of getting higher grade
+* Fedu - with higher level of education of father the grades also increase
+* studytime - with more time put into studies, the grade gets higher
+* failures - the number of failures has negative impact on the grade
+* schoolsup - having extra educational support has strong negative influence
+* famsup - having extra family support has negative influence
+side note here too: I guess here we see the opposite causaition: usually children who are not very successful in the education require additional support
+* goout - with increasing frequency of going out the grade tends to decrease
+
+Again, the residual deviance is smaller than null, so model performs better than null one, but not really much better
+
+* deviance test: model_1 and model_2
+
+```{r}
+anova(model_1, model_2)
+```
+
+The significant p-value (0.02364) suggests that Model 1 fits the data better than Model 2. 
+Which means that the variables we excluded still explain a lot of variance and we should not omit them
+
+* goout -> Walc
+
+```{r}
+model_3 <- glm(G1 ~ sex + Fedu + studytime + failures + schoolsup + famsup + Walc, data = student)
+summary(model_3)
+anova(model_2, model_3)
+```
+
+Weekend alcohol consumption is also a significant predictor, however, it doesn't imrpove the fit compared to the model 2 - it even makes it worse (higher residual deviance)
+
+### Exercise 9
+
+```{r}
+data(iris)
+iris <- iris
+head(iris)
+summary(iris)
+```
+
+a. reduced dataset
+
+```{r}
+iris_cut <- iris %>%
+  select(., -Species) %>%
+  as.matrix()
+pca <- prcomp(iris_cut, scale. = FALSE)
+summary(pca)
+```
+
+According to the summary, PC1 and PC2 explain 92.46% + 5.307% = 97.767% proportion of the variance
+
+* loadings
+
+Loadings are the eigenvectors of the covariance matrix
+
+```{r}
+cov_iris <- cov(iris_cut) # covariance matrix
+eigen_decomposition <- eigen(cov_iris)
+loadings <- eigen_decomposition$vectors
+loadings
+```
+
+* scores
+
+Scores are projections onto loadings
+
+```{r}
+scores <- iris_cut %*% loadings
+scores
+```
+
+Order of the columns:
+
+* Sepal.Length
+  
+* Sepal.Width
+  
+* Petal.Length
+  
+* Petal.Width
+
+Looking at the loadings, PC1 is mostly influenced by Petal Length and a bit less of Petal Width, while PC2 is negatively associated by Sepal Length and Width 
+
+b. correlation matrix
+
+```{r}
+cor_iris <- cor(iris_cut) # correlation matrix
+eigen_decomposition_cor <- eigen(cor_iris)
+loadings_cor <- eigen_decomposition_cor$vectors
+loadings_cor
+```
+
+```{r}
+scores_cor <- iris_cut %*% loadings_cor
+scores_cor
+```
+
+While using correlation matrix for PCA, components have equal weight and emportance, therefore, loadings for all principal components are more equally distributed than ones calculated using covariance matrix.
+
+c. millimeters
+
+```{r}
+iris_cut_mil <- iris_cut
+iris_cut_mil[, "Petal.Length"] <- iris_cut[, "Petal.Length"] * 10
+head(iris_cut_mil)
+
+pca_mil <- prcomp(iris_cut_mil, scale. = FALSE)
+summary(pca_mil)
+```
+
+The proportion of variance has highly changed to having more weight on the first PC (99.88%) and leaving just small proportion of variance for the last three components
+
+```{r}
+cov_iris_mil <- cov(iris_cut_mil) # covariance matrix
+eigen_decomposition_mil <- eigen(cov_iris_mil)
+loadings_mil <- eigen_decomposition_mil$vectors
+loadings_mil
+```
+
+Petal.Length accounts for the highest influence on the first principal component - which is logical, as its measure is now different and model consideres it as 10 times increase, not as another measure
+
+```{r}
+cor_iris_mil <- cor(iris_cut_mil) # correlation matrix
+eigen_decomposition_cor_mil <- eigen(cor_iris_mil)
+loadings_cor_mil <- eigen_decomposition_cor_mil$vectors
+loadings_cor_mil
+```
+
+However, calculations based on correlation matrix are not influenced by this change at all, which is also logical, considering that prior correlation hasn't changed by changing the measumement
+This leads us to the conclusion that having equal weights (correlation matrix) can be useful while modeling different types of variables, while using covariation matrix helps to understand the actual weight of each variable
+
+d. PC plot
+
+```{r}
+pca_components <- data.frame(pca$x[, 1:2])
+pca_components$Species <- iris$Species
+ggplot(pca_components, aes(x = PC1, y = PC2, color = Species)) +
+  geom_point(size = 3) +
+  labs(
+       x = "First principal component",
+       y = "Second principal component"
+       ) +
+  theme_minimal()
+```
+
+According to the plot, all three species are quite well separated
+I think, this two-dimensional plot represents the relative positions quite well, as first two components account for the most variance of the data.
+
+e. K-means
+
+```{r}
+set.seed(47)
+k = 3
+kmeans_iris <- kmeans(pca_components[, 1:2], centers = k)
+# take cluster
+pca_components$cluster <- as.factor(kmeans_iris$cluster)
+ggplot(pca_components, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point()
+
+table(pca_components$cluster, pca_components$Species)
+```
+
+cluster numbers:
+
+* 1 - setosa
+  
+* 2 - versicolor
+  
+* 3 - virginica
+
+Looks like the model predicts setosa and versicolor species good, but very bad predicts virginica, messing it up with setosa
+
+* classification error (reduced)
+```{r}
+species <- as.numeric(factor(iris$Species))
+CE_cut <- sum(pca_components$cluster != species) / length(species)
+CE_cut
+```
+
+* classification error (full)
+
+```{r}
+set.seed(47)
+kmeans_iris_full <- kmeans(iris_cut, centers = k)
+
+CE_full <- sum(kmeans_iris_full$cluster != species) / length(species)
+CE_full
+```
+
+The classification error is even larger while using the full dataset
+And still very big, that's probably mainly because of incorrect classification of virginica
+
+### Exercise 10
+
+a. AR(2) fit
+
+```{r}
+data(cmort)
+cmort <- cmort
+head(cmort)
+```
+
+Let's look at the data:
+
+```{r}
+n <- length(cmort)
+invisible(acf2(cmort, max.lag = n - 1))
+invisible(acf2(cmort, max.lag = 100))
+```
+
+There is definitely some time trend in the data
+Drop after second lag in PACF indicates that AR(2) may be a good model to fit
+
+a. AR model
+
+```{r}
+cmort_lags <- data.frame(
+  x = cmort[3:n],
+  x_1 = cmort[2:(n - 1)],
+  x_2 = cmort[1:(n - 2)]
+)
+cmort_ar2 <- lm(x ~ x_1 + x_2, data = cmort_lags)
+```
+
+b. forecast AR(2)
+```{r}
+n_weeks <- 4
+forecast_ar <- numeric(n_weeks)
+se_ar <- numeric(n_weeks)
+
+x_1 <- cmort_lags$x[nrow(cmort_lags)]
+x_2 <- cmort_lags$x_1[nrow(cmort_lags)]
+
+# predictions
+for (i in 1:n_weeks) {
+  forecast_ar[i] <- coef(cmort_ar2)["(Intercept)"] +
+                    coef(cmort_ar2)["x_1"] * x_1 +
+                    coef(cmort_ar2)["x_2"] * x_2
+  x_2 <- x_1
+  x_1 <- forecast_ar[i]
+
+  se_ar[i] <- sqrt(sum(residuals(cmort_ar2)^2) / (nrow(cmort_lags) - 2))
+}
+
+lower_bound_ar <- forecast_ar - 1.96 * se_ar
+upper_bound_ar <- forecast_ar + 1.96 * se_ar
+
+results_ar2 <- data.frame(
+  ar.pred = forecast_ar,
+  ar.se = se_ar,
+  lower_95_CI = lower_bound_ar,
+  upper_95_CI = upper_bound_ar
+)
+
+print(results_ar2)
+```
+
+Based on the predictions, the mortality rate in the following four weeks will be around 75 - 98.
+
+c. Yule-Walker method
+
+```{r}
+cmort_yw <- ar.yw(cmort, order.max = 2)
+cmort_yw$ar
+sqrt(diag(cmort_yw$asy.var.coef))
+summary(cmort_ar2)
+```
+
+Yule-Walker method suggests similar coefficients for both lags and a bit larger standard error than AR(2) model
+This is because of the different approach: OLS assumes having independent error, while Yule-Walker accounts for autocorrelation (which is typical for time series data)
+All in all, results do not differ much, so we can rely on both
+
+```{r}
+forecast_yw <- predict(cmort_yw, n.ahead = n_weeks, se.fit = TRUE)
+
+lower_bound_yw <- forecast_yw$pred - 1.96 * forecast_yw$se
+upper_bound_yw <- forecast_yw$pred + 1.96 * forecast_yw$se
+
+results_total <- data.frame(
+  forecast_ar = forecast_ar,
+  lower_95_CI = lower_bound_ar,
+  upper_95_CI = upper_bound_ar,
+  forecast_yw = forecast_yw,
+  lower_95_CI = lower_bound_yw,
+  upper_95_CI = upper_bound_yw
+)
+
+print(results_total)
+```
+
+The confidence intervals using Yule-Walker get wider with for third and fourth weeks because the uncertainty increases
+In total, the predictions are quite similar among both models
+
+f. ARMA model
+
+For the comparison I will recalculate AR(2) model using arima function
+
+```{r}
+cmort_ar2 <- arima(cmort, order = c(2, 0, 0))
+cmort_arma22 <- arima(cmort, order = c(2, 0, 2))
+AIC(cmort_ar2)
+AIC(cmort_arma22)
+BIC(cmort_ar2)
+BIC(cmort_arma22)
+```
+
+AIC and BIC information criterions suggest that AR model performs better than ARMA, so there is no need in adding additional complexity for the model
